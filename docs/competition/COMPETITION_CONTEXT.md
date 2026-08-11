@@ -68,6 +68,51 @@ directly against `train.csv` once the data is accessible.
 
 ---
 
+## 2a. Reports do NOT exist at test time (host confirmed)
+
+This is the single most architecture-defining fact in the competition, and it is settled.
+
+Discussion thread 734118, Nicolas Pantoja asked:
+
+> "Could you please confirm whether radiology reports will be unavailable for the hidden
+> test set? Since train.csv includes a Report column but test.csv only includes
+> StudyInstanceUID, why is the competition considered multimodal? Is text intended only
+> for training, while inference must rely solely on MRI images and series metadata?"
+
+Po-Hao "Howard" Chen, **Competition Host**, replied 2026-08-10:
+
+> "Confirmed. Reports are not available for the hidden test set."
+
+### What this means
+
+"Multimodal" describes the **training** setup, not the inference path. The design is
+forced into two stages:
+
+**Stage 1, train time only.** Reports to labels. Take the 4,349 unlabeled studies and
+derive twelve binary labels from their multilingual free-text reports. The 58 
+hand-labeled studies are your only ground truth for validating that this step works.
+Nothing from this stage ships to inference.
+
+**Stage 2, train and test.** Images to predictions. A vision model over DICOM series plus
+series metadata (`Fluid_Sensitive`, `Fat_Suppression`, `Anatomical_Plane`, `PatientSex`)
+producing twelve probabilities. This is the only thing that runs at submission time.
+
+### Consequences
+
+- No text encoder in the submission notebook. The multilingual sentence transformer
+  showing up on the Models tab is a Stage 1 tool, not part of an inference pipeline.
+- Label quality is the entire ballgame. Stage 1 errors propagate irreversibly into
+  Stage 2, and you cannot correct for them at inference because the reports are gone.
+- Your 58 labeled studies are precious and pull double duty: validating the label
+  extractor and providing clean supervision. Decide deliberately how to split them.
+- Any nine hour notebook budget goes entirely to imaging. No LLM inference cost at
+  submission time.
+- The Section 4.b question about sending report text to hosted LLM APIs applies only to
+  offline label generation, which slightly changes the risk profile but does not remove
+  the obligation.
+
+---
+
 ## 3. Data schema
 
 ### `train.csv` (one row per training study)
@@ -219,9 +264,8 @@ Threads observed on the Discussion tab (titles, authors, engagement):
 
 ## 8. Open questions to resolve first
 
-1. Are radiology reports present for the **test** set? If not, inference is image-only and
-   reports are purely a label-generation device at train time. This single answer shapes
-   the whole architecture.
+1. ~~Are radiology reports present for the **test** set?~~ **RESOLVED, see Section 2a.**
+   No. Host confirmed 2026-08-10. Inference is image-only.
 2. Can report text legally be sent to a hosted LLM API under Section 4.b?
 3. Confirm the 58 versus 4,407 labeled split directly from `train.csv`.
 4. How large is the dataset on disk? Run `kaggle competitions files` once credentials are

@@ -1121,6 +1121,85 @@ Output at `data/folds_real_dedupe.csv`. Fold sizes 848 to 859, gold studies spre
 
 ---
 
+## 6k. A/B RESULT: the scanner leak does NOT transfer to the pixel model
+
+Two runs of Pilkwang Kim's baseline-v1, weights package detached so the training
+branch executes, differing in exactly one variable: the validation split. Seed 2026,
+configs r224 and r336, 10 epochs, Tesla T4, same label source, run within a minute of
+each other.
+
+### Results
+
+| | Control (`md5(report) % 5`) | Treatment (dual-grouped) | Delta |
+|---|---|---|---|
+| train / holdout studies | 3,526 / 881 | 3,414 / 859 | -112 / -22 |
+| gold in holdout | 11 | 10 | -1 |
+| r224 best holdout | 0.7923 | 0.7904 | **-0.0019** |
+| **r336 best holdout** | **0.7980** | **0.7950** | **-0.0030** |
+| r336 annotation check | 0.7975 | 0.7746 | -0.0229 |
+
+### The finding
+
+**Closing the scanner leak moved the holdout number by 0.003.** The metadata probes
+predicted far more: Zhukov and morningduck both measured metadata-only performance
+falling from 0.6516 under random folds to 0.5981 under scanner-grouped folds, a gap
+of 0.053. The natural inference, which this document made in Section 6d and which the
+forum appears to share, was that roughly that much inflation sits inside any
+randomly-split validation number.
+
+**It does not, at least not for a pixel model.** A metadata-only classifier has
+nothing but site identity to exploit, so grouping by scanner destroys its principal
+signal and the score collapses. A vision model reads pathology from pixels and
+apparently leans on site identity only marginally, so removing that crutch costs it
+almost nothing.
+
+This is a negative result, and it is worth publishing precisely because the inference
+it refutes is intuitive and widely held.
+
+### Confounds, stated plainly
+
+1. **The two arms hold out different studies by construction** (859 versus 881,
+   different membership). This is unavoidable, since the split is the independent
+   variable, but it means these are two estimates of generalisation rather than two
+   measurements of one quantity.
+2. **The treatment trained on 112 fewer studies**, because dedupe removes the
+   redundant report copies. Some fraction of the -0.003 is less training data, not
+   removed leakage, which makes the true leak effect even smaller than measured.
+3. **One seed per arm.** A 0.003 gap on a single holdout is inside noise. The
+   direction is consistent across both configs (-0.0019 and -0.0030), which is weak
+   corroboration at best, since two configs from one run are not independent.
+4. **The annotation-check gap (-0.0229) looks larger but means less.** It rests on
+   10 versus 11 gold studies. At that size the standard error swamps the difference.
+
+### What to actually do
+
+**Use the dual-grouped folds anyway.** They cost roughly 0.003, which is noise, and
+buy a validation number that is defensible under scrutiny rather than merely
+plausible. Cheap insurance.
+
+**Do not claim they fix a 0.05 inflation.** That claim is now measured and false. The
+honest statement is that the metadata leak is real, is measurable with a metadata-only
+probe, and does not materially propagate into a trained vision model.
+
+**Neither number is comparable to the public leaderboard.** Both arms detached the
+weights package, which is why they sit near 0.79 rather than 0.899.
+
+### Incidental: where attached datasets actually mount
+
+The treatment log resolved the fold table to:
+
+```
+/kaggle/input/datasets/flight0234/rsna-knee-dual-grouped-folds/folds_dual_grouped.csv
+```
+
+So attached datasets nest under `/kaggle/input/datasets/<owner>/<slug>/`, exactly as
+the competition nests under `/kaggle/input/competitions/<slug>/`. Neither sits at the
+bare `/kaggle/input/<slug>/` path that most public notebooks assume. Run 1 of the
+treatment died on that assumption after 45 minutes of cache building. Resolve paths by
+search, never by literal.
+
+---
+
 ## 7. Forum intelligence worth chasing
 
 Threads observed on the Discussion tab (titles, authors, engagement):

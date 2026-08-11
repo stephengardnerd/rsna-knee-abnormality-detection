@@ -14,6 +14,8 @@ short and identical so that exactly one variable moved per experiment.
 
 **Author:** Stephen D. Gardner, U.S. Navy veteran and AI product founder.
 
+![What each controlled experiment moved, plus the first public score](assets/experiments_summary.png)
+
 ## Why this problem
 
 This one is personal. I dealt with knee injuries during and after my own Navy
@@ -41,6 +43,13 @@ under test. Full data, methods, and honest caveats in
 | 3 | Slice coverage: 6 slices/slot @ 252 px vs 3 @ 336 px | +0.013 | Coverage pays broadly; the thinnest structures declined, a reading experiment 4 then revised |
 | 4 | Synthesis: 6 slices @ 294 px (Nyquist-safe pitch) | +0.001, new best | Lateral Meniscus recovers with pitch; MCL and Fracture isolate a third mechanism, multi-instance label dilution |
 | 5 | First submission (kernel v5) | public 0.860 | The 10-gold internal check was pessimistic; the 390-study public set scored far higher |
+
+![Per-finding holdout AUC across the three imaging configs](assets/per_finding_three_way.png)
+
+*The chart above is the day's deepest finding: doubling slice coverage lifted nine
+findings, restoring fine pixel pitch recovered the Lateral Meniscus, and MCL and
+Fracture fall regardless, isolating a training-scheme mechanism (multi-instance
+label dilution) rather than an imaging one.*
 
 ## Findings the community did not have
 

@@ -822,6 +822,108 @@ should be read as a cluster rather than a strict ordering.
 
 ---
 
+## 6h. The canonical baseline, read in full (2026-08-11)
+
+Pulled five top notebooks to `notebooks/reference/` (gitignored, third-party work).
+`pilkwang/rsna-knee-baseline-v1` at **270 votes** is the field's reference implementation,
+roughly double the next notebook. 21 code cells, 118k characters, heavily documented.
+
+### Notebook ecosystem
+
+| Notebook | Votes | GPU | Notable dependencies |
+|---|---|---|---|
+| pilkwang / rsna-knee-baseline-v1 | 270 | yes | own LLM labels, own weights, DINOv2-small |
+| prvsiyan / read-the-report-then-the-knee | 147 | **no** | BiomedCLIP, DINOv2 base+small, EffNet-B3, three label sets |
+| ryanholbrook / efficiency-lb | 114 | no | 1 cell, 304 chars: a scoreboard, not a model |
+| romanrozen / data-structure-eda-baseline | 91 | yes | RadImageNet + MedicalNet ResNet-50, two label sets |
+| wguesdon / dinov2-at-meniscus-resolution | 83 | yes | DINOv2-small |
+
+Two observations. **The field has converged on DINOv2-small plus public LLM labels**; the
+strong notebooks import stevenleehans, lixin73, and pilkwang label sets rather than building
+their own, which corroborates Section 6g's advice to adopt rather than rebuild. And
+**medical-domain pretrained backbones are in play** (RadImageNet ResNet-50, MedicalNet
+ResNet-50, BiomedCLIP), which is an angle distinct from the DINOv2 monoculture.
+
+Note the Efficiency LB notebook is a leaderboard tracker maintained by Kaggle staff, not a
+technique. Do not mistake its vote count for a modelling contribution.
+
+### Architecture of the reference baseline
+
+Not a naive 2.5D CNN. The design choices worth understanding:
+
+- **Slot-based study representation.** `pick_slots` selects representative series per
+  plane and contrast combination. A study becomes a bag of slot images.
+- **`SlotHead`, per-diagnosis attention over slots.** The docstring gives the clinical
+  reason: cruciates read sagittally, collateral ligaments and meniscal body coronally,
+  patellar cartilage axially, so uniform pooling would dilute whichever slot carries the
+  evidence. Deliberately shallow, because a study-level label gives no signal about which
+  slice matters, so deeper attention would fit noise.
+- **DINOv2-small encoder, fine-tuned rather than frozen**, with a configurable
+  `unfreeze_last`. Pooling is `cls_mean`, concatenating the CLS token with mean-pooled
+  patches.
+- **Laterality normalisation.** Left and right knees are flipped to a common handedness.
+- **Physical-resolution resampling**, expressed in millimetres per pixel rather than fixed
+  pixel dimensions, so studies from different scanners are comparable.
+- **Geometric slice ordering** recovered from DICOM tags (0020,0032) ImagePositionPatient,
+  (0020,0037) ImageOrientationPatient, (0020,0013) InstanceNumber, rather than trusting
+  filename order.
+- **A cache held at the highest resolution any configuration needs**, with lower-resolution
+  runs downsampling from it, so every configuration sees the same pixels through a
+  different sampling grid rather than a different crop.
+- **A multilingual regex extractor alongside the LLM labels**, with negation handling,
+  severity tiers, and anatomical stems covering Latin, Greek, and Cyrillic scripts
+  (`menisc|menisk|μηνισκ|мениск`).
+
+### The validation design, which is the most valuable part
+
+Section 7 of the notebook, titled "Validating without fooling yourself," documents two leaks
+that **do not appear anywhere in the forum threads**.
+
+**Leak 1, shared reports.** Some reports are byte-identical across studies, template reads
+for unremarkable knees. Because targets are derived from report text, every study in such a
+group gets an identical target vector, so splitting the group across the train/validation
+divide scores the model on a target whose source it trained on. The fix is to assign studies
+to splits by **hash of the report text**, keeping duplicate groups whole. One fifth held out,
+split fixed rather than rotated.
+
+**VERIFIED against our copy of `train.csv`:**
+
+- 4,407 studies, **4,273 unique report texts**
+- **49 duplicate groups covering 183 studies, 4.2% of the corpus**
+- Largest group is **37 studies sharing one identical Turkish template report** for a
+  fully normal knee ("Diz eklemi içi sıvı miktarı normal... Medyal ve lateral menisküs
+  normal"), then groups of 14, 12, 6, 5, 5
+- Only **1 of the 58 gold studies** sits in a duplicate group
+
+So the leak is real but bounded, and one 37-study normal-knee template dominates it.
+
+**Leak 2, two references with two meanings.** The author separates them cleanly:
+
+- The **holdout** (one fifth) measures agreement with the *derived* targets. It has enough
+  studies per label to distinguish real differences from noise, so it selects both the epoch
+  within a run and the recipe between runs.
+- The **annotation check** measures agreement with the 58 image-based gold labels, which is
+  what the competition actually scores, but only gold studies falling inside the holdout
+  qualify and there are very few. It is **reported and never allowed to arbitrate**.
+- The 58 annotated studies **stay in training at elevated weight**, because they are the
+  only labels read from images rather than text. That is precisely why the annotation check
+  must be restricted to the holdout: scoring a model on training examples whose answers it
+  saw, weighted more heavily than anything else, measures memorisation and reports it as
+  skill.
+
+**This answers the open question from Section 2a about how to split the 58.** The answer is
+that you do not split them out of training. You keep them in at higher weight and accept
+that your gold-based check is a weak, non-arbitrating signal.
+
+### An unresolved tension worth deciding deliberately
+
+The baseline groups by **report hash**. Zhukov and morningduck (Section 6d) argue for
+grouping by **scanner fingerprint**, having measured a 0.05 inflation from random folds.
+These guard different leaks and neither subsumes the other. A split grouped on both is
+strictly better and nobody appears to have published one.
+
+---
+
 ## 7. Forum intelligence worth chasing
 
 Threads observed on the Discussion tab (titles, authors, engagement):

@@ -52,3 +52,6 @@ scratch/*
 .DS_Store
 .Rhistory
 *.log
+
+# Third-party reference notebooks (other authors work, do not redistribute)
+notebooks/reference/

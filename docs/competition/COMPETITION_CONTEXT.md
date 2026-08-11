@@ -1200,6 +1200,103 @@ search, never by literal.
 
 ---
 
+## 6l. Route assessment: Synovitis/Fracture repair is CAPPED. Swap the key instead.
+
+Five-agent workflow (2026-08-11): three parallel analyses over local data, then two
+adversarial verifiers re-deriving every load-bearing number from scratch. Verifier
+results: all miss counts and AUCs reproduced exactly; one intermediate number in the
+key-comparison output (a conf-signed macro of 0.8208) was refuted as non-reproducible,
+but the conclusion it supported stands independently (see below).
+
+### Finding 1: S/F label repair is structurally capped at ~+0.003 to +0.006 macro
+
+Every gold-study miss in v4_blend's two weak columns was read against its actual
+report text and classified:
+
+| | Misses | Recoverable from text | Report never mentions finding | Report contradicts gold |
+|---|---|---|---|---|
+| Synovitis (AUC 0.790) | 18 | **2** | 14 | 2 |
+| Fracture (AUC 0.793) | 11 | **5** | 4 | 2 |
+
+The error mass is exactly the image-derived-label gap from Section 6b: 14 of 16
+Synovitis gold-positive misses have reports describing only effusion or bursitis with
+the synovial lining never mentioned; all 4 Fracture gold-positive misses describe only
+contusion or marrow edema with no fracture line. **No better Stage-1 reader can
+recover a finding the report does not contain.**
+
+Arithmetic: fixing every text-recoverable miss lifts the key from 0.8927 to 0.8983
+(+0.0056); the conservative variant is +0.0030. Both columns sit near text ceilings of
+roughly 0.81 to 0.83.
+
+The recoverable cases are all ONE pattern: borderline-positive language ("mild
+synovitis", "minima sinovitis", SONK/insufficiency microfractures, impaction injury)
+that the rubric grades NEGATIVE while v4 outputs 0.90+. The fix, if ever pursued, is a
+rubric-calibration pass demoting hedged/minimal language, not a stronger reader, and it
+carries regression risk on Effusion and the OA columns, which share the same
+borderline-threshold rubric.
+
+**VERDICT: do not build the S/F repair. The route I ranked highest earlier is capped.**
+
+### Finding 2: v2's label columns are graded, and the baseline already trains soft
+
+`report_labels_v2.csv` label columns are not binary: they take exactly five values
+{0.08, 0.28, 0.68, 0.82, 0.94} (NO / UNK / three YES grades), and `__conf` is a
+deterministic function of the grade. Consequences: (a) the baseline already trains BCE
+against soft targets, so a v4_blend soft-target swap changes nothing structurally;
+(b) 0.8700 is v2's best face; conf-signed rescoring provably equals the same 0.8700
+(monotone transform of the same column), refuting the hypothesis that binary scoring
+understated v2.
+
+### Finding 3: the key swap changes real training mass, one-sidedly
+
+v2 and v4 disagree on 2,412 cells across 4,406 studies, 77% concentrated in Medial
+Meniscus (567), Contusion (562), Lateral Meniscus (432), and ACL (304), and the
+direction is essentially one-sided: v2 positive where v4 negative (566/567, 543/562,
+431/432, 304/304). That is v4 following the host rubric (borderline negative, surface
+contact required, contusion-without-line separation) while v2 fires on any mention.
+v4 wins the gold head-to-head on 10 of 12 findings.
+
+**The exception is Fracture: v2 scores 0.8713 vs v4's 0.7931**, and Fracture is the
+smallest disagreement surface in the corpus (17 studies). A pre-registered single-column
+hybrid (v4 everywhere, v2's Fracture column) is worth +0.0065 macro on the key with
+almost no training-target churn. Flag: choosing columns by gold AUC is selection on the
+58-study ruler; this one is defensible only because the gap is large and the
+substitution surface is tiny. Do not generalise to a greedy best-of-both.
+
+### Finding 4: the swap is one cheap, verified notebook patch
+
+Verified against the actual fork cells: `read_labels()` (cell 15) discovers
+`report_labels*.csv` by filename, requires all 24 columns including `__conf`, falls
+back to a lexicon, and fail-fasts with LabelSourceError when a label mount is attached
+but unusable. Weights are `W = 0.25 + 0.75*conf` (weak) / 3.0 flat (gold); `__verdict`
+is unused; the keep mask cannot drop studies under v4 (min row weight-sum 6.93).
+
+Patch plan: feed v4_blend probabilities as soft targets directly, synthesise
+`conf = abs(p - 0.5) * 2` (a 0.5 "not addressed" cell then gets the 0.25 floor weight,
+matching the rubric posture), patch the filename discovery, add
+`stevenleehans/rsna-knee-llm-report-labels` to dataset_sources AND remove the pilkwang
+labels source to kill dual-mount ambiguity, and verify the swap took via the
+"LABEL SOURCE:" audit line (expect 4407 of 4407). Add per-finding holdout AUC logging
+(two small edits, rides free) so the MODEL's weak columns become measurable against the
+KEY's weak columns.
+
+Cost: ~84 minutes on a T4, ~5% of weekly quota. Caveat: swapping the key changes the
+holdout targets, so holdout numbers are not comparable to v2-era runs; compare via the
+annotation check and treat the swap run as the new baseline.
+
+### The strategic read
+
+Labels are near their ceilings everywhere that matters: v4_blend at 0.8927 against a
+measured human ceiling near 0.82-0.89, S/F capped, the hybrid worth at most +0.0065 on
+the key. Meanwhile the from-scratch model sits at 0.795 against a 0.899 public-weights
+cluster and a 0.929 top-10 bar. **The remaining gap is training recipe and budget, not
+label quality.** After the key-swap measurement (which tests whether key quality
+transfers to the model at all, the same transfer question the scanner A/B just answered
+negatively for fold design), GPU quota should go to Stage-2 training, and effort-per-
+point favours the portfolio writeup over further Stage-1 work.
+
+---
+
 ## 7. Forum intelligence worth chasing
 
 Threads observed on the Discussion tab (titles, authors, engagement):

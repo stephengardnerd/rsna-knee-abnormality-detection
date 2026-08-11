@@ -55,3 +55,20 @@ Kaggle CLI is installed in an isolated venv:
 ```
 
 Credentials go at `~/.kaggle/kaggle.json` with mode `600`. Not yet configured.
+
+## Environment (set up 2026-08-11)
+
+Project venv, deliberately lean. Stage 2 training runs on Kaggle, not locally,
+so there is no local torch/CUDA stack and none is needed.
+
+```
+.venv/bin/python          # pandas, pydicom, scikit-learn, tqdm, requests, pyarrow
+~/.local/bin/kaggle       # Kaggle CLI 2.2.4, authenticated
+```
+
+Kaggle credentials live at `~/.kaggle/access_token` (mode 600). Note that CLI 2.2.4
+uses a raw `KGAT_` token there, NOT the legacy `kaggle.json` username/key pair.
+
+Stage 1 label extraction runs locally against Ollama. `qwen2.5:72b-instruct-q8_0`
+(77 GB) fits in 128 GB unified memory and is strong multilingually, which matters
+because the reports are Spanish-plurality with substantial Turkish and Greek.

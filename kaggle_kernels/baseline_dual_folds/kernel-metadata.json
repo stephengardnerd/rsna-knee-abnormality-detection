@@ -4,7 +4,7 @@
   "code_file": "rsna-knee-baseline-dual-folds.ipynb",
   "language": "python",
   "kernel_type": "notebook",
-  "is_private": true,
+  "is_private": false,
   "enable_gpu": true,
   "enable_tpu": false,
   "enable_internet": false,
@@ -13,7 +13,9 @@
     "pilkwang/rsna-knee-llm-labels",
     "flight0234/rsna-knee-dual-grouped-folds"
   ],
-  "kernel_sources": [],
+  "kernel_sources": [
+    "pilkwang/rsna-knee-baseline-v1"
+  ],
   "competition_sources": [
     "rsna-knee-abnormality-detection"
   ],

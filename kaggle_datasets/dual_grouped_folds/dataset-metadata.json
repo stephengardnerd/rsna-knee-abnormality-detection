@@ -1,5 +1,11 @@
 {
   "title": "RSNA Knee dual-grouped folds",
   "id": "flight0234/rsna-knee-dual-grouped-folds",
-  "licenses": [{"name": "CC0-1.0"}]
+  "licenses": [
+    {
+      "name": "CC0-1.0"
+    }
+  ],
+  "subtitle": "5-fold split guarding both the shared-report and shared-scanner leaks",
+  "description": "Cross-validation folds for RSNA Knee Abnormality Detection that guard two leaks at once.\n\n1. SHARED REPORT TEXT. Targets for the 4,349 unlabelled studies are derived from report text, so studies sharing a byte-identical report get an identical target vector. train.csv has 4,273 unique reports across 4,407 studies: 49 duplicate groups covering 183 studies, the largest being 37 studies sharing one normal-knee template. The redundant copies are dropped (134 studies) rather than grouped, because grouping them creates edges that bridge scanner sites.\n\n2. SHARED SCANNER. DICOM metadata alone reaches 0.6516 macro AUC under random folds but only 0.5981 under scanner-grouped folds. Folds here are grouped on a scanner key of Manufacturer (vendor-normalised), model, software version and coil.\n\nIMPORTANT: the scanner key deliberately EXCLUDES ImagingFrequency. That tag records per-session shim drift, not machine identity, and including it yields 3,262 groups over 4,410 studies (about one per study), which is no grouping constraint at all while still appearing guarded.\n\nGrouping on both keys transitively fuses 19.2% of the corpus into a single indivisible component. Deduping instead caps the largest component at 8.1%.\n\nColumns: StudyInstanceUID, fold (0-4). Studies absent from this file are the 134 dropped duplicate copies; exclude them from BOTH train and validation, since a duplicate left in training carries its twin's target vector.\n\nOnly the partition is published. No DICOM header values or report content are included."
 }

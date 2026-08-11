@@ -924,6 +924,84 @@ strictly better and nobody appears to have published one.
 
 ---
 
+## 6i. Dual-grouped folds: built, and the result is a warning
+
+Built `scripts/build_dual_grouped_folds.py` to guard both leaks at once, with
+`scripts/extract_scanner_fingerprints.py` to produce the scanner key and
+`tests/test_dual_grouped_folds.py` covering the logic.
+
+### Why it is connected components, not two groupbys
+
+Constraints compose transitively. If A and B share a report they must land in the
+same fold; if B and C share a scanner they must too; so A, B and C are bound
+together despite sharing nothing directly. The assignable unit is therefore the
+connected component of a graph whose edges are "same report" or "same scanner",
+computed with union-find (path compression plus union by size, near-linear).
+
+### Report grouping alone works cleanly
+
+| Metric | Value |
+|---|---|
+| Components | 4,273 |
+| Singletons | 4,224 |
+| Largest component | 37 studies (0.8%) |
+| Fold sizes | 886 / 893 / 850 / 891 / 887 |
+| Gold per fold | 15 / 10 / 13 / 10 / 10 |
+
+Label prevalence across folds is tight, for example ACL 0.226 to 0.248 and MCL
+0.175 to 0.189.
+
+### But adding the scanner key probably cascades
+
+Probing the real report-duplicate structure against synthetic scanner labels
+matching Zhukov's reported shape (265 fingerprints, top 20 covering ~45%) collapses
+the corpus into a **largest component of 2,706 studies, 61.4%**.
+
+That is fatal if it holds. A component is indivisible, so 61% of the data would
+have to go wholly into one fold. The builder refuses above `--max-component`
+(default 0.35) rather than emitting unusable folds.
+
+The mechanism is that scanner groups are already large before any merging (a site
+with 100+ studies is one unit), and duplicate-report groups then bridge sites,
+chaining them together. This is synthetic, so re-run the probe against real
+fingerprints before treating it as settled, but the guard exists because the risk
+is real rather than theoretical.
+
+### The resolution worth trying first
+
+**Deduplicate the report groups instead of grouping them.** Duplicate reports leak
+because they produce identical derived targets, so keeping one representative per
+duplicate group (or downweighting the rest) removes the leak *without* creating a
+grouping edge. That breaks the cascade at its source, because the bridges between
+scanner groups are exactly the duplicate-report groups.
+
+That would leave scanner as the only grouping key, which is the constraint with the
+measured 0.053 of inflation behind it, while handling the report leak by
+construction. Cost is 183 studies at most, 4.2% of the corpus, and most of that is
+one 37-study normal-knee template that contributes little signal anyway.
+
+Fallback options if that is not enough: coarsen the scanner key to Manufacturer
+plus field strength rather than the full five-tag fingerprint, or raise
+`--max-component` knowingly.
+
+### A bug worth recording, since it would have been silent
+
+The first implementation scored candidate folds on absolute deviation from ideal.
+That is degenerate: an empty fold scores near `ideal` (large) while a fold already
+at ideal scores near `block` (small), so the optimiser pours everything into the
+fullest fold. Real output was 1817 / 1721 / 869 / **0** / **0**.
+
+The fix is to score the *change* in deviation, which carries the correct sign:
+moving toward ideal is negative and attractive, moving away is positive and
+repulsive. A regression test pins this.
+
+The lesson generalises: a greedy balancer must optimise a delta, not a level. The
+failure was visible only because fold sizes were printed. Had the script written
+folds silently, two empty folds would have propagated into every downstream
+experiment as inexplicably optimistic validation.
+
+---
+
 ## 7. Forum intelligence worth chasing
 
 Threads observed on the Discussion tab (titles, authors, engagement):

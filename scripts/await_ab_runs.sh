@@ -12,7 +12,7 @@
 export PATH="$HOME/.local/bin:$PATH"
 REPO=$HOME/Documents/Antigravity/RSNA_Knee_Abnormality_Detection
 TREATMENT=flight0234/rsna-knee-baseline-dual-grouped-folds
-CONTROL=flight0234/rsna-knee-baseline-control-md5split
+CONTROL=flight0234/rsna-knee-baseline-dual-grouped-folds  # both vars point at the re-run arm; control already finished
 LOG="$REPO/scratch/ab_runs.log"
 INTERVAL=300
 MAX_TICKS=115          # 115 * 300s ~= 9h35m

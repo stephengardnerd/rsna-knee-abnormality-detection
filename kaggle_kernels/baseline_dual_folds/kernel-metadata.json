@@ -11,7 +11,6 @@
   "dataset_sources": [
     "pilkwang/pilkwang-public-dataset-for-notebooks-figures",
     "pilkwang/rsna-knee-llm-labels",
-    "pilkwang/rsna-knee-weights",
     "flight0234/rsna-knee-dual-grouped-folds"
   ],
   "kernel_sources": [],
@@ -20,5 +19,6 @@
   ],
   "model_sources": [
     "metaresearch/dinov2/PyTorch/small/1"
-  ]
+  ],
+  "machine_shape": "NvidiaTeslaT4"
 }

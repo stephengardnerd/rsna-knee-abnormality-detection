@@ -1,7 +1,8 @@
 # ---- Competition data: NEVER commit ----
 # RSNA MIRA license Section 4.b forbids redistributing Competition Data.
 # DICOM studies are also far too large for git.
-data/
+data/*
+!data/.gitkeep
 *.dcm
 *.zip
 *.tar
@@ -12,7 +13,8 @@ data/
 *.parquet
 
 # ---- Model weights and checkpoints ----
-models/
+models/*
+!models/.gitkeep
 *.pt
 *.pth
 *.ckpt

@@ -757,6 +757,71 @@ Do not attempt a full local mirror.
 
 ---
 
+## 6g. Bake-off: published label sets scored against the 58 gold (2026-08-11)
+
+Run with `scripts/score_label_sets.py`. Seven public label sets downloaded and scored.
+
+### Method validation
+
+The scorer independently reproduces stevenleehans' published figures **exactly**:
+`llm_labels_full.csv` = 0.8780 (their stated v1 baseline) and `llm_labels_v2.csv` = 0.8873
+(their stated synovitis-repaired version). pilkwang's v1 lands at 0.8125 against their
+quoted regex figure of 0.8136. That agreement is the reason to trust the rest of the table.
+
+### Ranking
+
+| Label set | Macro AUC vs gold |
+|---|---|
+| **stevenleehans / llm_labels_v4_blend.csv** | **0.8927** |
+| stevenleehans / llm_labels_v2.csv | 0.8873 |
+| stevenleehans / llm_labels_full.csv | 0.8780 |
+| pilkwang / report_labels_v2.csv | 0.8700 |
+| lixin73 / labels_llm_gpt56sol.csv | 0.8352 |
+| lixin73 / report_labels_gpt56sol.csv | 0.8352 |
+| pilkwang / report_labels_v1.csv (regex) | 0.8125 |
+
+Note that **v4_blend at 0.8927 is better than anything described in the forum post**, which
+topped out at 0.8873. They published a newer blend than they wrote up.
+
+### Two exclusions, both instructive
+
+- **barun2104 `train_folds.csv` and `train_folds_with_pseudo.csv` are CONTAMINATED as an
+  evaluation target.** Their twelve label columns are the gold columns copied through, NaN
+  for all 4,349 non-gold studies, so scoring them yields a spurious 1.0000. The file is a
+  **stratified 5-fold assignment**, not a label set. It remains useful for exactly that,
+  and it carries separate `pseudo_*` columns. Any future scorer must guard against this.
+- **freshtime `pseudo_labels.csv`** covers precisely the 4,349 non-gold studies, so it has
+  zero overlap with the evaluation set and cannot be scored this way.
+
+### Per-finding AUC for the winner (v4_blend)
+
+| Finding | AUC | | Finding | AUC |
+|---|---|---|---|---|
+| ACL | 0.987 | | Effusion | 0.877 |
+| MCL | 0.968 | | Contusion | 0.860 |
+| Medial Meniscus | 0.948 | | Lateral OA | 0.833 |
+| Baker's | 0.944 | | **Fracture** | **0.793** |
+| Medial OA | 0.932 | | **Synovitis** | **0.790** |
+| PF OA | 0.902 | | Lateral Meniscus | 0.879 |
+
+**Synovitis and Fracture are the only columns below 0.80**, and together they hold most of
+the remaining headroom. That matches the mechanism in Section 6a exactly: synovitis is the
+graded-severity/rarely-written case, fracture is the unstated-inference case.
+
+### Strategic consequence
+
+A public label set already sits at **0.8927**. Building a Stage 1 extractor from scratch to
+beat that is a real project, not a warm-up, and the expected gain over simply adopting
+v4_blend is small. **Adopt v4_blend as the working key.** If Stage 1 effort is spent at all,
+spend it only on Synovitis and Fracture, where the ceiling is visibly lower and the failure
+mechanism is already understood. Everything else should go to Stage 2.
+
+Caveat that applies to this whole table: 58 studies, 9 to 35 positives per finding. Gaps
+under roughly 0.02 macro are not measurable here, so the top three stevenleehans entries
+should be read as a cluster rather than a strict ordering.
+
+---
+
 ## 7. Forum intelligence worth chasing
 
 Threads observed on the Discussion tab (titles, authors, engagement):

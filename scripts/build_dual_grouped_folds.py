@@ -139,7 +139,62 @@ def report_hash(text: str) -> str:
     return hashlib.md5(str(text).strip().encode("utf-8")).hexdigest()
 
 
-def build_components(df: pd.DataFrame, use_scanner: bool) -> pd.Series:
+def dedupe_report_groups(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Drop all but one study from each byte-identical-report group.
+
+    WHY DROPPING, AND NOT "TRAIN ONLY"
+    ----------------------------------
+    The instinct is to keep duplicates but bar them from validation. That does not
+    work. The leak is that two studies sharing a report share a derived target
+    vector, so if study B sits in training while its twin A sits in validation, the
+    model has already been fitted on A's exact answer. Marking B train-only puts B
+    in training on every rotation, which is the leaking configuration by
+    construction. The only ways out are to keep the group whole in one fold (that
+    is the grouping strategy) or to remove the redundant copies. This does the
+    latter.
+
+    WHY IT IS WORTH DOING AT ALL
+    ----------------------------
+    Grouping duplicates is correct in isolation but has a bad interaction with the
+    scanner key. Duplicate-report groups often straddle sites, so each one becomes
+    an edge fusing two scanner groups, and a chain of such edges cascades into a
+    giant component (measured at 61.4% of the corpus under a realistic synthetic
+    scanner structure). Removing the redundant copies removes the bridges, which
+    lets scanner grouping stand on its own.
+
+    REPRESENTATIVE SELECTION
+    ------------------------
+    The survivor is the lexicographically smallest StudyInstanceUID in the group.
+    Any deterministic rule works; determinism is the requirement, because fold
+    assignment is an experimental control and must not shift between runs.
+
+    A gold-labelled study is preferred as survivor when the group contains one,
+    since the 58 annotated studies are the only image-derived labels in the corpus
+    and discarding one to keep an arbitrary twin would be a strict loss.
+
+    Returns (kept_df, dropped_df). The dropped frame is returned rather than
+    discarded so the caller can record exactly what left the corpus.
+    """
+    gold_mask = df[[c for c in TARGETS if c in df.columns]].notna().all(axis=1) \
+        if all(c in df.columns for c in TARGETS) else pd.Series(False, index=df.index)
+
+    keep_idx: list = []
+    drop_idx: list = []
+    for _, grp in df.groupby("_report_hash", sort=False):
+        if len(grp) == 1:
+            keep_idx.extend(grp.index)
+            continue
+        gold_members = grp.index[gold_mask.loc[grp.index]]
+        pool = gold_members if len(gold_members) else grp.index
+        survivor = min(pool, key=lambda i: df.at[i, "StudyInstanceUID"])
+        keep_idx.append(survivor)
+        drop_idx.extend([i for i in grp.index if i != survivor])
+
+    return df.loc[sorted(keep_idx)].copy(), df.loc[sorted(drop_idx)].copy()
+
+
+def build_components(df: pd.DataFrame, use_scanner: bool,
+                     use_report: bool = True) -> pd.Series:
     """Union studies that share a report hash or a scanner fingerprint.
 
     Returns a Series of component id indexed like df, where the id is the
@@ -159,6 +214,11 @@ def build_components(df: pd.DataFrame, use_scanner: bool) -> pd.Series:
 
     for key_col, label in [("_report_hash", "report"), ("_scanner_fp", "scanner")]:
         if key_col == "_scanner_fp" and not use_scanner:
+            continue
+        if key_col == "_report_hash" and not use_report:
+            # Dedupe strategy: redundant copies are already gone, so there is no
+            # residual report constraint and adding edges here would be a no-op
+            # that still risks bridging scanner groups via any missed collision.
             continue
         groups = defaultdict(list)
         for uid, key in zip(df["StudyInstanceUID"], df[key_col]):
@@ -252,29 +312,78 @@ def assign_folds(df: pd.DataFrame, comp: pd.Series, n_folds: int,
     fold_pos = [{c: 0.0 for c in label_cols} for _ in range(n_folds)]
     assignment: dict = {}
 
-    for comp_id, idxs in sorted(members.items(), key=lambda kv: -len(kv[1])):
+    # Precompute each component's label mass once. Beyond avoiding repeated pandas
+    # work inside the placement loop, this is what makes the ordering below
+    # possible: the sort key depends on label mass, so it cannot be computed lazily.
+    blocks = []
+    for comp_id, idxs in members.items():
         block = df.loc[idxs]
         block_pos = {c: float(block[c].fillna(0).astype(float).sum())
                      for c in label_cols}
-        block_n = len(idxs)
+        blocks.append((comp_id, idxs, block_pos, sum(block_pos.values())))
 
+    # ORDERING: size descending, then a deterministic hash-shuffle within each size.
+    #
+    # Size-first is the group constraint: a large component placed late finds every
+    # fold nearly full and cannot be compensated for. That part is not negotiable.
+    #
+    # The tie-break took two attempts to get right, and both failures are worth
+    # keeping on record because each looked reasonable.
+    #
+    #   Attempt 1, insertion order (CSV row order). Studies from one site or
+    #   language sit contiguously in train.csv, so early folds and late folds saw
+    #   different label distributions. Medial OA spread reached 0.082.
+    #
+    #   Attempt 2, label mass descending. This looked principled, the same
+    #   intuition as rarest-label-first iterative stratification, but it segregates
+    #   the corpus temporally: every high-signal study is placed before any
+    #   low-signal one. By the time the all-negative filler arrives, size is the
+    #   only binding term, so the entire tail pours into whichever single fold is
+    #   smallest and drags that fold's prevalence down alone. Symptom was one
+    #   outlier fold per run, for example Medial Meniscus at 0.374 against 0.48
+    #   elsewhere.
+    #
+    # A deterministic shuffle fixes both. Hashing the component id decorrelates
+    # placement order from file position AND from label mass, so at every point in
+    # the sweep the greedy is choosing from a representative sample rather than
+    # from one systematically skewed end of the corpus. It is reproducible across
+    # runs and machines because md5 is stable, which matters because the fold split
+    # is an experimental control.
+    blocks.sort(key=lambda b: (-len(b[1]),
+                               hashlib.md5(str(b[0]).encode()).hexdigest()))
+
+    for comp_id, idxs, block_pos, _mass in blocks:
+        block_n = len(idxs)
         best_f, best_cost = 0, None
         for f in range(n_folds):
-            cost = 0.0
+            # MEAN, not sum, over labels. Summing was a scaling defect: each label
+            # delta is normalised by that label's ideal positive count (order 200),
+            # while the size delta is normalised by the ideal fold size (order 880).
+            # A single study therefore moved the label cost by ~1/200 per label
+            # across twelve labels, but the size cost by only ~1/880, leaving size
+            # roughly fifty times underweighted. Fold sizes drifted badly as a
+            # result: 766 to 1072 against an ideal of 881.
+            #
+            # Averaging puts the label term on the scale of one typical label, so
+            # size_weight=1.0 genuinely means "size matters as much as the average
+            # finding" rather than "size is a rounding error".
+            label_cost = 0.0
             for c in label_cols:
                 ideal_c = ideal_pos[c]
                 if ideal_c <= 0:
                     continue  # label absent from the corpus; nothing to balance
                 before = fold_pos[f][c]
                 after = before + block_pos[c]
-                cost += (abs(after - ideal_c) - abs(before - ideal_c)) / ideal_c
-            # Size is balanced by the same delta rule so the two terms are on a
-            # comparable scale and size_weight means what it says.
-            cost += size_weight * (
+                label_cost += (abs(after - ideal_c) - abs(before - ideal_c)) / ideal_c
+            if label_cols:
+                label_cost /= len(label_cols)
+
+            size_cost = (
                 abs(fold_size[f] + block_n - ideal_size)
                 - abs(fold_size[f] - ideal_size)
             ) / ideal_size
 
+            cost = label_cost + size_weight * size_cost
             if best_cost is None or cost < best_cost:
                 best_f, best_cost = f, cost
 
@@ -304,6 +413,12 @@ def main() -> None:
                          "this share of the corpus.")
     ap.add_argument("--report-only", action="store_true",
                     help="Print component diagnostics and exit without writing.")
+    ap.add_argument("--report-strategy", choices=["group", "dedupe"], default="group",
+                    help="How to handle byte-identical reports. 'group' keeps each "
+                         "duplicate set whole in one fold, which is exact but "
+                         "bridges scanner groups and can cascade. 'dedupe' drops "
+                         "the redundant copies, removing the bridges so scanner "
+                         "grouping stands alone. See dedupe_report_groups().")
     args = ap.parse_args()
 
     df = pd.read_csv(args.train)
@@ -338,12 +453,25 @@ def main() -> None:
     else:
         label_cols = [c for c in TARGETS if c in df.columns]
 
-    print(f"studies: {len(df)}")
-    print(f"leak 1 (report text): GUARDED")
+    n_original = len(df)
+    dropped = None
+    if args.report_strategy == "dedupe":
+        df, dropped = dedupe_report_groups(df)
+        # Recompute label columns on the surviving frame. The _strat columns were
+        # attached before the drop, so they survive the row filter intact; this is
+        # only a guard against a future reordering of these two steps.
+        label_cols = [c for c in label_cols if c in df.columns]
+
+    print(f"studies: {n_original}"
+          + (f" -> {len(df)} after dedupe ({len(dropped)} dropped)" if dropped is not None else ""))
+    print(f"report strategy:      {args.report_strategy}")
+    print(f"leak 1 (report text): GUARDED "
+          f"({'redundant copies removed' if args.report_strategy == 'dedupe' else 'groups kept whole'})")
     print(f"leak 2 (scanner):     {'GUARDED' if use_scanner else '*** UNGUARDED ***'}")
     print(f"stratifying on {len(label_cols)} label columns\n")
 
-    comp = build_components(df, use_scanner)
+    comp = build_components(df, use_scanner,
+                            use_report=(args.report_strategy == "group"))
     sizes = Counter(comp)
     biggest = max(sizes.values())
     share = biggest / len(df)

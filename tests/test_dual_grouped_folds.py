@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "scripts"))
 
 from build_dual_grouped_folds import (  # noqa: E402
-    UnionFind, assign_folds, build_components, report_hash,
+    UnionFind, assign_folds, build_components, dedupe_report_groups, report_hash,
 )
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -157,15 +157,30 @@ def probe_giant_component_risk() -> None:
     # chance of a duplicate-report group straddling two sites.
     df["_scanner_fp"] = [fps[(i * 7919) % n] for i in range(n)]
 
-    comp = build_components(df, use_scanner=True)
-    sizes = Counter(comp)
-    largest = max(sizes.values())
-    print(f"  components: {len(sizes)} | largest: {largest} ({largest / n:.1%})")
-    if largest / n > 0.35:
-        print("  SIGNAL: cascade is plausible. Expect build_dual_grouped_folds.py")
-        print("          to refuse, and plan to coarsen the scanner key.")
-    else:
-        print("  SIGNAL: no cascade under this synthetic structure.")
+    # Strategy A: group the duplicate reports. Every duplicate group becomes an
+    # edge, and those edges are exactly what bridges one site to another.
+    comp_group = build_components(df, use_scanner=True, use_report=True)
+    largest_group = max(Counter(comp_group).values())
+
+    # Strategy B: dedupe first, so no report edges exist and scanner grouping
+    # stands alone. This is the hypothesis under test: removing the bridges should
+    # leave component size bounded by the largest single site.
+    kept, dropped = dedupe_report_groups(df)
+    comp_dedupe = build_components(kept, use_scanner=True, use_report=False)
+    largest_dedupe = max(Counter(comp_dedupe).values())
+
+    print(f"  group  strategy: {len(Counter(comp_group))} components, "
+          f"largest {largest_group} ({largest_group / n:.1%})")
+    print(f"  dedupe strategy: {len(Counter(comp_dedupe))} components, "
+          f"largest {largest_dedupe} ({largest_dedupe / len(kept):.1%}), "
+          f"{len(dropped)} studies dropped")
+
+    check("dedupe keeps the largest component under the 35% refusal threshold",
+          largest_dedupe / len(kept) <= 0.35,
+          f"{largest_dedupe / len(kept):.1%}")
+    check("dedupe strictly beats grouping on component size",
+          largest_dedupe < largest_group,
+          f"{largest_dedupe} vs {largest_group}")
     print("  NOTE: synthetic scanners. Re-run against real fingerprints before")
     print("        drawing any conclusion about the actual corpus.")
 

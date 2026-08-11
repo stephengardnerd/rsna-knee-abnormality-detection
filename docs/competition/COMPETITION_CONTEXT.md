@@ -186,11 +186,43 @@ fee.
   approach, a public link to open-sourced code and weights on the forum, and the final
   model shared publicly for open distribution and validation.
 
-### Open compliance question
-Multiple live forum threads ask whether Competition Data may be sent to third-party or
-commercially hosted LLM APIs in order to derive labels from the reports. The host has
-pinned a topic titled "Use of Commercially Hosted LLMs." Given Section 4.b above, this is
-not academic. **Resolve before building any pipeline that ships report text off-box.**
+### Compliance question: RESOLVED, hosted LLMs are permitted
+
+Thread 733965, posted by the host as a standing clarification after FHZ982 (733873) and
+Fernando Faria (733652) raised the apparent conflict between Section 2.6 and Section 2.4.b.
+
+Host ruling, paraphrased:
+
+- Use of commercially hosted LLMs and other external inference services **is permitted**,
+  provided the service complies with the rest of the rules, chiefly that tools be
+  reasonably accessible to all participants and of minimal cost.
+- Submitting Competition Data, **including report text**, to an external LLM or API for
+  inference or computational processing, explicitly naming label extraction from reports as
+  the example, **is not by itself prohibited private sharing**.
+- The PRIVATE SHARING restriction targets sharing data, code, or work product with other
+  participants, teams, or third parties for collaboration or competitive use outside the
+  registered Team. It was never aimed at tool use.
+- Grounded in Section 2.6.b, External Data and Tools.
+- Participants stay responsible for the external service complying with the rules and its
+  own terms. The host reserves the right to rule a given service prohibitively costly or
+  unfairly advantageous.
+
+**This overturns the community's working assumption.** In thread 733652, k256.dev (385th)
+had argued that sending report text to commercial LLMs was not permitted and that labelling
+therefore had to use locally hosted models such as Qwen, or human annotation. The host's
+ruling supersedes that. Offline label extraction with a hosted frontier model is allowed.
+
+### Still open on the compliance side
+
+Fernando Faria's other question has **not** been answered as of this capture: whether public
+knee-MRI datasets behind free click-through research-use agreements (MRNet from Stanford,
+fastMRI+ from NYU, the Osteoarthritis Initiative, SKM-TEA) satisfy "equally accessible at no
+cost." None charge, none are institution-restricted, but none are anonymously downloadable
+either. He also asks whether weights released under a research-use agreement complicate the
+winners' CC-BY-NC 4.0 obligation. Related unanswered threads: "Is the gated KneeCoT dataset
+permitted as external data?" (734109) and "Clarification on MIRA Section 6" (734131).
+
+Also from 733652: the reports span **nine languages** (participant-reported).
 
 ---
 
@@ -411,6 +443,214 @@ in Section 2.
 
 ---
 
+## 6c. LLM report labelling, and the "not addressed" problem
+
+Source: thread 733932, stevenleehans (448th), 2026-08-09. The most substantive
+methodological post on the forum so far.
+
+### Prior art the author explicitly credits (do not reinvent)
+
+- **Pilkwang Kim**, `rsna-knee-llm-labels` (2026-08-06, the first of these) and
+  `rsna-knee-baseline-v1`
+- **barun2104**, Stratified Folds and LLM Soft Labels (2026-08-07)
+- **lixin73**, LLM Report Labels, GPT-5.6-Sol (2026-08-08)
+- Pipelines measured against: Karnakbayev Artur (`rsna-knee-eda-to-2-5d`), Will/wguesdon
+  (`rsna-knee-dinov2-at-meniscus-resolution`), Alexandre Moritz and Roman Rozen (EDA and
+  baselines)
+
+### LLM beats regex, but not by as much as the gap that follows
+
+| Label source | Macro AUC vs the 58 gold |
+|---|---|
+| Regex / lexicon extraction | 0.8136 |
+| LLM reading the same reports | 0.8780 |
+
+### The real finding: 25.4% of label cells are "the report does not address this"
+
+The author asked the labeller for a probability per finding **with an explicit "not
+addressed" option mapping to 0.5**, rather than silently coercing silence to negative.
+A quarter of all cells came back at exactly 0.5, and wildly unevenly:
+
+| Finding | Gold AUC | "Not addressed" rate |
+|---|---|---|
+| Synovitis | 0.678 | 83.7% |
+| Baker's | 0.946 | 48.2% |
+| Fracture | 0.793 | 42.9% |
+| ACL | 0.993 | 8.3% |
+| Medial Meniscus | 0.954 | 5.5% |
+
+Synovitis is the worst column by distance and 84% of it is missing, yet 27 of the 58 gold
+studies are synovitis-positive. It is common in the joint and seldom written down.
+
+### Silence means different things for different findings
+
+This is the load-bearing insight. Rate at which the gold label is positive, split by
+whether the report says anything at all:
+
+| Finding | Gold positive when report is SILENT | when it SPEAKS |
+|---|---|---|
+| Synovitis | 0.34 | 0.76 |
+| PF OA | 0.21 | 0.41 |
+| Baker's | 0.03 | 0.44 |
+| Medial OA | 0.00 | 0.36 |
+
+When a radiologist does not mention a Baker's cyst, there almost certainly is not one, 3%
+against 44%. **The silence is the label**, and overwriting it with a correlation guess
+destroys real information. But silence about synovitis still leaves a 34% chance it is
+present, so there the silence is genuinely uninformative and imputation helps.
+
+Across nine readable findings the "silence ratio" correlates **+0.59** with how much
+imputation helped. Nine points, so suggestive rather than proven.
+
+> "Not addressed" is not one thing. For some findings it means absent; for others it means
+> nobody looked.
+
+### Targeted imputation beat blanket imputation
+
+Radiologists report effusion readily and synovitis rarely, and the two co-occur. A single
+pre-registered test: the **Effusion** field predicts gold Synovitis (0.7115) *better than
+the Synovitis field does* (0.6780). Gold co-occurrence P(syn | eff) = 0.63 against
+P(syn | no eff) = 0.22.
+
+| Key | Macro vs gold |
+|---|---|
+| v1 baseline | 0.8780 |
+| v2, synovitis filled from effusion only | **0.8873** |
+| v3, learned ridge imputation across all twelve | 0.8805 |
+
+Per label, v3 splits cleanly: Synovitis +0.056, PF OA +0.023, Fracture +0.015, against
+Baker's -0.029, Contusion -0.031, Lateral OA -0.019. **The blanket version is worse than
+the targeted one.**
+
+Notably, a version that *cheated* by using gold labels to choose which findings to impute
+scored 0.8845, still below the disciplined 0.8873.
+
+### The author's own caveats, which are unusually honest and worth heeding
+
+1. **58 studies is a small ruler.** Differences below roughly 0.02 macro are not
+   measurable on it. The author reports **three separate readings from this ruler
+   overturned by the leaderboard**. Treat small gaps as unknown, not as zero.
+2. **A better key is not automatically a better model.** Swapping these labels in gave no
+   gain at first and only paid off after unrelated pipeline bugs were fixed.
+3. **Gold prevalence is the annotator's sampling, not disease prevalence.** Every gold
+   study has at least one positive finding, mean 4.14 per study. The 58 are enriched, not
+   a random sample, so any prevalence or calibration estimate drawn from them is biased.
+4. These are model-generated labels, a better approximation of what the report says,
+   nothing more.
+
+### Takeaway the author leads with
+
+Ask the labeller for "I don't know" as a first-class answer, then study *where* it refuses.
+The distribution of refusals was more informative than the labeller's accuracy, and
+repairing one column on that basis was worth more than any change made to the images.
+
+---
+
+## 6d. DICOM metadata: no usable shortcut, but CV design matters
+
+### The shortcut probe came back negative
+
+Source: thread 733517, Oleksii Zhukov (513th), 15 votes. Public LB passed 0.9 within about
+a day of launch, which looked implausible, so he tested whether metadata alone explained it.
+
+It does not. Full DICOM header metadata with **no pixels** reaches 0.6515 macro AUC under
+random folds and **0.5981 under scanner-grouped folds**. The 0.053 difference is site
+memorization that does not transfer to unseen scanners.
+
+His conclusion: no meaningful shortcuts found, and leaderboard scores appear to reflect
+genuine image reading.
+
+Method, worth copying:
+- **Probe A, site identifiability.** Cluster on Manufacturer, ManufacturerModelName,
+  SoftwareVersions, ImagingFrequency, ReceiveCoilName. No labels needed. Result: **265
+  distinct scanner fingerprints**, top 20 covering 45.5% of studies.
+- **Probe B, metadata to targets.** HistGradientBoosting on study-level metadata, scored
+  under random 5-fold and under GroupKFold on that fingerprint. The gap is the quantity of
+  interest. Decision threshold written down before running.
+
+Selected per-label results (random / site-grouped / drop):
+
+| Label | Random | Site-grouped | Drop |
+|---|---|---|---|
+| Baker's | 0.765 | 0.717 | 0.048 |
+| ACL | 0.705 | 0.670 | 0.035 |
+| PF OA | 0.680 | 0.599 | 0.081 |
+| Medial OA | 0.652 | 0.578 | 0.074 |
+| Fracture | 0.605 | 0.519 | 0.086 |
+| **Macro** | **0.6516** | **0.5981** | **0.0534** |
+
+**Series composition alone, using only the four columns already in `train_series.csv` and
+reading no DICOM headers at all, gives 0.5954.** The entire header pass adds just 0.056 over
+that. Cheap baseline, most of the metadata signal, no DICOM parsing.
+
+His own caveats: targets were report-derived rather than expert, so part of the 0.053 may be
+metadata predicting *reporting style* rather than disease; and 265 fingerprints is finer than
+institution, making the grouped folds stricter than true site holdout. Both push 0.053 toward
+being an upper bound.
+
+Notebook: `kaggle.com/code/zhukovoleksiy/rsna-metadata-probe`
+
+### Scanner-grouped CV and sex priors
+
+Source: thread 734004, morningduck (600th). Independently reproduces the same numbers,
+0.652 random against 0.598 scanner-grouped.
+
+Roughly 13 scanner groups across the 4,407 training studies:
+
+| Scanner group | Studies |
+|---|---|
+| Siemens 1.5T | 1,148 |
+| Siemens 3T | 781 |
+| GE 1.5T | 698 |
+| Philips 3T | 663 |
+| Philips 1.5T | 619 |
+
+OA targets show the largest drop, 0.07 to 0.09, consistent with field-strength-dependent
+cartilage contrast. **Use scanner-grouped folds, not random K-fold**, or validation will
+flatter itself by roughly 0.05.
+
+**Metadata readable in the test headers at inference time** via pydicom: `PatientSex`
+(0010,0040), `Manufacturer`, `MagneticFieldStrength`, `SeriesDescription`,
+`ImageOrientationPatient`.
+
+Sex priors in training (M=2,076 / F=1,894) are strong and clinically sensible:
+
+| Target | M prevalence | F prevalence |
+|---|---|---|
+| ACL | ~54% | ~32% |
+| Medial OA | ~12% | ~45% |
+
+Males skew toward traumatic injury, females toward degenerative change. Since `PatientSex`
+is available at test time, this is a legitimate free feature, not leakage. Consider fairness
+implications before leaning on it hard.
+
+---
+
+## 6e. Leaderboard state as of 2026-08-11
+
+Public LB is computed on approximately **30% of the test data**; final standings come from
+the other 70%.
+
+**1,108 teams** currently ranked.
+
+| Rank | Team | Score |
+|---|---|---|
+| 1 | Brandon Low | 0.942 |
+| 2 | Pizza Boy | 0.941 |
+| 3 | Lukas Nissen Molvær | 0.939 |
+| 5 | Sida Zuo | 0.937 |
+| 10 | Ignat | 0.929 |
+| 25 | YassY_The_AlchemYst | 0.919 |
+| 49 | ispromashka | 0.909 |
+
+**The field is brutally compressed.** First place to 49th spans only 0.033. A prize position
+(top 10) currently requires about 0.929, and the widely copied 0.899 public baseline sits
+somewhere around 60th to 80th. Combined with a 30/70 public/private split and the host's
+warning that abnormality prevalence is not guaranteed constant across splits, small public
+gains are close to meaningless and shakeup risk is high.
+
+---
+
 ## 7. Forum intelligence worth chasing
 
 Threads observed on the Discussion tab (titles, authors, engagement):
@@ -444,11 +684,33 @@ Threads observed on the Discussion tab (titles, authors, engagement):
 
 1. ~~Are radiology reports present for the **test** set?~~ **RESOLVED, see Section 2a.**
    No. Host confirmed 2026-08-10. Inference is image-only.
-2. Can report text legally be sent to a hosted LLM API under Section 4.b?
-3. Confirm the 58 versus 4,407 labeled split directly from `train.csv`.
-4. How large is the dataset on disk? Run `kaggle competitions files` once credentials are
+2. ~~Can report text be sent to a hosted LLM API under Section 4.b?~~ **RESOLVED, see
+   Section 5.** Yes. Host ruled 2026-08-09 that hosted LLM inference on report text is not
+   prohibited private sharing.
+3. ~~Is the DICOM metadata shortcut real?~~ **RESOLVED, see Section 6d.** No. Metadata alone
+   reaches only 0.598 across unseen scanners. Leaderboard reflects real image reading.
+4. Confirm the 58 versus 4,407 labeled split directly from `train.csv`. Three independent
+   community sources agree, but this remains unverified first-hand.
+5. How large is the dataset on disk? Run `kaggle competitions files` once credentials are
    set up. Currently 1.3 TB free locally.
-5. Is the DICOM metadata shortcut real, and does it survive to the private leaderboard?
+6. **Do click-through public datasets (MRNet, fastMRI+, OAI, SKM-TEA) count as "equally
+   accessible at no cost"?** Asked in 733652 and 734109, unanswered by the host as of this
+   capture. Blocks any external-data strategy.
+7. Does using research-use-agreement weights complicate the winners' CC-BY-NC 4.0 grant?
+   Also unanswered.
+
+### Design decisions these findings force
+
+- Use **scanner-grouped folds**, not random K-fold (Section 6d). Random splits inflate by
+  roughly 0.05.
+- Ask the label extractor for an explicit **"not addressed"** value rather than coercing
+  silence to negative (Section 6c).
+- Impute missing cells **selectively**, only where silence is uninformative. Blanket
+  imputation measurably hurts (Section 6c).
+- Treat the 58 gold studies as an **enriched, biased sample**, not a prevalence estimate.
+  Every one has at least one positive finding.
+- Do not chase sub-0.02 improvements measured on 58 studies. That ruler cannot resolve them,
+  and its readings have been overturned by the leaderboard three times already.
 
 ---
 

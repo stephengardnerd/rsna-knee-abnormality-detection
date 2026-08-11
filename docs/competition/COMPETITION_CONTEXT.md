@@ -1576,3 +1576,11 @@ since the modeling was done in hosted AutoML. Its only Python file renames JPEGs
 Paste additional material below this line.
 
 ---
+
+## First public score (2026-08-11)
+
+Submission 55440915 (kernel v5, r294g2): **public 0.860**, rank ~507 of 1,187 (top 43%).
+Internal estimates were holdout 0.8129 (vs own key) and annot 0.7999 (n=10 gold); the
+public set (~390 image-labelled studies) scored 0.860, well above the n=10 estimate,
+confirming the gold check was pessimistic at that sample size. From-scratch 10-epoch
+model; the 0.899 cluster above us runs pretrained competition weights.

@@ -1,0 +1,52 @@
+# ---- Competition data: NEVER commit ----
+# RSNA MIRA license Section 4.b forbids redistributing Competition Data.
+# DICOM studies are also far too large for git.
+data/
+*.dcm
+*.zip
+*.tar
+*.tar.gz
+*.npy
+*.npz
+*.h5
+*.parquet
+
+# ---- Model weights and checkpoints ----
+models/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.bin
+
+# ---- Submissions ----
+submissions/*.csv
+!submissions/.gitkeep
+
+# ---- Credentials ----
+kaggle.json
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Scratch and OS ----
+scratch/*
+!scratch/.gitkeep
+.DS_Store
+.Rhistory
+*.log

@@ -10,8 +10,8 @@
   "enable_internet": false,
   "dataset_sources": [
     "pilkwang/pilkwang-public-dataset-for-notebooks-figures",
-    "pilkwang/rsna-knee-llm-labels",
-    "flight0234/rsna-knee-dual-grouped-folds"
+    "flight0234/rsna-knee-dual-grouped-folds",
+    "flight0234/rsna-knee-hybrid-report-labels"
   ],
   "kernel_sources": [
     "pilkwang/rsna-knee-baseline-v1"

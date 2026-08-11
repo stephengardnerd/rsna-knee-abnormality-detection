@@ -1,0 +1,11 @@
+{
+  "title": "RSNA Knee hybrid report labels",
+  "id": "flight0234/rsna-knee-hybrid-report-labels",
+  "licenses": [
+    {
+      "name": "CC0-1.0"
+    }
+  ],
+  "subtitle": "v4_blend labels with v2 Fracture column; gold macro 0.899",
+  "description": "Hybrid weak-label key for RSNA Knee Abnormality Detection, built entirely from two already-public label sets:\n\n- Eleven findings: stevenleehans' llm_labels_v4_blend (https://www.kaggle.com/datasets/stevenleehans/rsna-knee-llm-report-labels), macro 0.8927 vs the 58 gold studies.\n- Fracture: Pilkwang Kim's report_labels_v2 (https://www.kaggle.com/datasets/pilkwang/rsna-knee-llm-labels), which outscores v4 on Fracture 0.8713 vs 0.7931 against gold, on a disagreement surface of only 17 studies. The one study v2 lacks keeps v4's value.\n\nMeasured against the 58 gold studies: macro AUC 0.8991.\n\nThe substitution was pre-registered on the gold-AUC gap and the tiny substitution surface BEFORE any training run. A greedy per-column best-of-both across all twelve findings would be selection on a 58-study ruler and was deliberately not done.\n\nSchema: StudyInstanceUID, the twelve label columns as soft probabilities, and <finding>__conf weight channels. Conf for the eleven v4 columns is abs(p-0.5)*2, so cells at exactly 0.5 (the labeller's explicit 'report does not address this') get conf 0. Fracture keeps v2's own conf. The filename report_labels_v4hybrid.csv follows the discovery convention used by public baseline notebooks.\n\nAll credit for the underlying labelling to the two authors above. This file only composes their work."
+}

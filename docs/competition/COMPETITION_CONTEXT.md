@@ -1364,6 +1364,66 @@ control, two treatments).
 
 ---
 
+## 6n. COVERAGE VARIANT RESULT: biggest gain of the day, but not for the predicted reason
+
+Run r252g2 (v4): 6 slices per slot at 252 px, versus r336's 3 slices at 336 px. All else
+identical (seed, epochs, folds, hybrid key, crop). Audit lines confirmed: "2 group(s) of
+3", cache (4407, 6, 6, 252, 252) = 9.4 GB, hybrid label source, 56-minute wall clock.
+
+### Headline
+
+| Metric | r336 (3 slices, 0.387 mm/px) | r252g2 (6 slices, 0.516 mm/px) | Delta |
+|---|---|---|---|
+| Holdout macro (vs key) | 0.7981 | **0.8115** | **+0.0134** |
+| Annot macro (gold, n=10) | 0.7863 | **0.7987** | **+0.0124** |
+
+Both comparable metrics moved together, and this is the largest single improvement of
+any experiment today (fold swap -0.003, key swap +0.012 annot, coverage +0.013).
+
+### Per-finding, best epoch (10), holdout vs key
+
+| Finding | r336 | r252g2 | Delta | | Finding | r336 | r252g2 | Delta |
+|---|---|---|---|---|---|---|---|---|
+| Baker's | 0.828 | 0.884 | **+0.056** | | Medial Meniscus | 0.764 | 0.780 | +0.016 |
+| Lateral OA | 0.782 | 0.810 | +0.028 | | Medial OA | 0.851 | 0.865 | +0.014 |
+| PF OA | 0.759 | 0.787 | +0.028 | | Effusion | 0.829 | 0.843 | +0.014 |
+| Synovitis | 0.836 | 0.860 | +0.024 | | **Fracture** | 0.865 | 0.851 | **-0.014** |
+| Contusion | 0.815 | 0.837 | +0.022 | | **Lateral Meniscus** | 0.712 | 0.697 | **-0.015** |
+| ACL | 0.782 | 0.801 | +0.019 | | **MCL** | 0.754 | 0.723 | **-0.031** |
+
+### The honest mechanism read
+
+The bet was "coverage rescues the weak four (menisci, MCL, PF OA)". That is NOT what
+happened. Nine findings rose, led by fluid and marrow findings (Baker's +0.056), and PF
+OA and Medial Meniscus did improve. But the three losers are precisely the THINNEST
+structures in the label set: MCL (a few mm of ligament), Lateral Meniscus, and Fracture
+(a cortical line), i.e. the findings most exposed to the pitch cost that the config
+comment pre-registered (0.516 mm/px fails the 0.5 mm Nyquist bound for a 1 mm feature).
+
+So both effects are real and they trade off PER FINDING: coverage pays broadly, pitch
+binds on thin structures. The pre-registered adjudication rule ("menisci/MCL rise while
+fluid holds" vs "everything drops") returned a third outcome that is more informative
+than either: **coverage and resolution are not rivals but a per-finding allocation
+problem.**
+
+### The indicated synthesis, costed
+
+6 slices at a Nyquist-safe pitch. Budget arithmetic: 2 groups need afford >= 6, i.e.
+R <= 264 px under the current 13.41 GiB budget, so 252 is already the ceiling. The
+escape is raising CACHE_FRACTION 0.45 -> ~0.60: at 294 px (21x14, 0.442 mm/px, clears
+the 0.5 bound) two groups plan ~17.8 GiB against ~29.8 GB free. Doable but eats the
+host-RAM margin the SIGKILL warning lives on; needs its own preflight on the scoring-run
+memory case before anyone runs it. Candidate name: r294g2.
+
+Cheaper orthogonal follow-ups: per-slot heterogeneous resolution (fine pitch on the
+sagittal/coronal structural slots only), and the sagittal band widen (0.20-0.80 ->
+0.12-0.88) which is free and untested.
+
+GPU today: ~7.3 h of 30. Annot per-finding at n=10 remains uninterpretable noise (MCL
+0.444, three columns near 1.0); only the macro annot is quoted above.
+
+---
+
 ## 7. Forum intelligence worth chasing
 
 Threads observed on the Discussion tab (titles, authors, engagement):

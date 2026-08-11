@@ -651,6 +651,112 @@ gains are close to meaningless and shakeup risk is high.
 
 ---
 
+## 6f. VERIFIED first-hand from the actual CSVs (2026-08-11)
+
+Downloaded `train.csv`, `train_series.csv`, `test.csv`, `sample_submission.csv` via the
+Kaggle API. Everything below is measured, not forum-reported.
+
+### The 58 is confirmed exactly
+
+- `train.csv`: **4,407 rows**
+- Rows with any label present: **58**
+- Rows with all twelve labels present: **58** (so labelling is all-or-nothing, no partials)
+- Mean findings per labeled study: **4.14**, matching stevenleehans exactly
+- Labeled studies with zero positive findings: **0**, confirming the gold set is enriched
+  rather than randomly sampled
+
+Gold prevalence across the 58:
+
+| Finding | Positive | Rate |
+|---|---|---|
+| Effusion | 35 | 60% |
+| Synovitis | 27 | 47% |
+| Medial Meniscus | 26 | 45% |
+| ACL | 24 | 41% |
+| Lateral Meniscus | 23 | 40% |
+| PF OA | 21 | 36% |
+| Contusion | 19 | 33% |
+| Fracture | 18 | 31% |
+| Medial OA | 15 | 26% |
+| Baker's | 12 | 21% |
+| Lateral OA | 11 | 19% |
+| MCL | 9 | 16% |
+
+Synovitis at 27 of 58 matches the figure quoted in thread 733932. **Treat these as the
+annotator's sampling, not disease prevalence.**
+
+### CORRECTION: `PatientSex` is empty in train.csv
+
+**All 4,407 rows have a blank `PatientSex`.** The Data page says the column "may be blank";
+in practice it is blank 100% of the time.
+
+This qualifies Section 6d. morningduck's training distribution (M=2,076 / F=1,894) and the
+sex-stratified prevalence figures cannot have come from `train.csv`. They must come from
+DICOM tag (0010,0040) in the headers. So sex is usable, but only by reading DICOMs, and it
+is not a free CSV column.
+
+### FINDING: `Fluid_Sensitive` and `Fat_Suppression` are the same column
+
+`train_series.csv` has **24,371 rows** across all 4,407 studies. The two binary flags are
+**identical on 24,371 of 24,371 rows, 100%**. Only (1,1) and (0,0) occur; (1,0) and (0,1)
+never appear.
+
+They carry **zero independent information**. Whatever the intent, one is redundant.
+
+This matters for Section 6d: Zhukov's "series composition alone reaches 0.5954" used
+plane x Fluid_Sensitive x Fat_Suppression counts, but that cross is effectively
+plane x one-binary. His feature space is smaller than described, which makes the 0.5954
+result more impressive per feature, not less.
+
+I have not seen this raised on the forum. Worth verifying against `test_series.csv` before
+relying on it.
+
+### Series structure
+
+- Series per study: min **3**, median **5**, mean **5.53**, max **14**
+- Plane distribution: Sagittal 9,864 / Coronal 8,609 / Axial 5,898
+
+### Reports
+
+All 4,407 present, none empty. Length: min 52 chars, median **977**, max 4,743.
+
+Rough language mix by keyword heuristic (approximate, not a real language ID):
+
+| Language | Studies |
+|---|---|
+| Spanish | ~1,807 |
+| English | ~630 |
+| Turkish | ~595 |
+| unclassified | ~578 |
+| Greek | ~321 |
+| Cyrillic (Russian/Bulgarian) | ~220 |
+| German | ~173 |
+| French | ~83 |
+
+Consistent with the nine-language claim. **Spanish is the plurality by a wide margin**, which
+should drive vocabulary effort ordering. Turkish and Greek together are around 900 studies,
+which is why they were flagged as the weak spots in Section 6a.
+
+### Dataset size: local download is likely NOT viable
+
+Sampled DICOMs are **1,844,682 bytes** each, consistent with 960x960 16-bit uncompressed
+plus header. Projecting across 24,371 training series:
+
+| Slices/series | Train DICOM files | Approx. size |
+|---|---|---|
+| 25 | 609,275 | ~1.12 TB |
+| 30 | 731,130 | ~1.35 TB |
+| 35 | 852,985 | ~1.57 TB |
+
+**Local free space is 1.3 TB.** Training data alone plausibly exceeds it, before the ~1,300
+test studies. The estimate is an upper bound since some series use JPEG 2000 or JPEG Lossless
+and will be smaller, but the conclusion holds.
+
+**Work in Kaggle Notebooks where the data is already mounted**, or pull a deliberate subset.
+Do not attempt a full local mirror.
+
+---
+
 ## 7. Forum intelligence worth chasing
 
 Threads observed on the Discussion tab (titles, authors, engagement):
@@ -689,7 +795,8 @@ Threads observed on the Discussion tab (titles, authors, engagement):
    prohibited private sharing.
 3. ~~Is the DICOM metadata shortcut real?~~ **RESOLVED, see Section 6d.** No. Metadata alone
    reaches only 0.598 across unseen scanners. Leaderboard reflects real image reading.
-4. Confirm the 58 versus 4,407 labeled split directly from `train.csv`. Three independent
+4. ~~Confirm the 58 versus 4,407 labeled split.~~ **RESOLVED, see Section 6f.** Verified
+   first-hand: exactly 58 of 4,407, all-or-nothing, mean 4.14 findings. Three independent
    community sources agree, but this remains unverified first-hand.
 5. How large is the dataset on disk? Run `kaggle competitions files` once credentials are
    set up. Currently 1.3 TB free locally.

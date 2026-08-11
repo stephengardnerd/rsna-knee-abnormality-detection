@@ -6,7 +6,7 @@
 # every 5 minutes is well inside the multi-hour runtime of the treatment arm and
 # costs one cheap API call per tick.
 export PATH="$HOME/.local/bin:$PATH"
-REPO=$HOME/Documents/Antigravity/RSNA_Knee_Abnormality_Detection
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
 TREATMENT=flight0234/rsna-knee-baseline-dual-grouped-folds
 LOG="$REPO/scratch/ab_runner.log"
 

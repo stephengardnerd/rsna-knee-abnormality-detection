@@ -9,6 +9,11 @@ Source: https://www.kaggle.com/competitions/rsna-knee-abnormality-detection
 
 ## 1. The task
 
+Host's clinical framing (competition Overview page, captured 2026-08-11):
+osteoarthritis affects an estimated 654 million people worldwide, and acute knee
+injuries account for 15 to 40 percent of all sports-related trauma. MRI access to
+subspecialty musculoskeletal radiologists is limited outside major medical centers.
+
 Build a model that detects twelve clinically important abnormalities on knee MRI
 examinations. This is the first RSNA AI Challenge to pair every imaging study with the
 text of its original radiology report, across a large, multilingual, international

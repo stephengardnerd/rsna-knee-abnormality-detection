@@ -10,7 +10,7 @@
 # the multi-hour runtime and keeps the log readable.
 
 export PATH="$HOME/.local/bin:$PATH"
-REPO=$HOME/Documents/Antigravity/RSNA_Knee_Abnormality_Detection
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
 TREATMENT=flight0234/rsna-knee-baseline-dual-grouped-folds
 CONTROL=flight0234/rsna-knee-baseline-dual-grouped-folds  # both vars point at the re-run arm; control already finished
 LOG="$REPO/scratch/ab_runs.log"

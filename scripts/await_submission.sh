@@ -21,7 +21,7 @@
 
 export PATH="$HOME/.local/bin:$PATH"
 COMP=rsna-knee-abnormality-detection
-LOG=$HOME/Documents/Antigravity/RSNA_Knee_Abnormality_Detection/scratch/submission_watch.log
+LOG="$(cd "$(dirname "$0")/.." && pwd)/scratch/submission_watch.log"
 INTERVAL=300
 MAX_TICKS=115
 

@@ -967,22 +967,63 @@ chaining them together. This is synthetic, so re-run the probe against real
 fingerprints before treating it as settled, but the guard exists because the risk
 is real rather than theoretical.
 
-### The resolution worth trying first
+### The resolution: dedupe, and it works
 
-**Deduplicate the report groups instead of grouping them.** Duplicate reports leak
-because they produce identical derived targets, so keeping one representative per
-duplicate group (or downweighting the rest) removes the leak *without* creating a
-grouping edge. That breaks the cascade at its source, because the bridges between
-scanner groups are exactly the duplicate-report groups.
+Implemented as `--report-strategy dedupe`. Instead of unioning duplicate-report
+studies into one component, the redundant copies are dropped and one representative
+survives. That removes the graph edges that bridge scanner sites, so scanner
+grouping stands on its own.
 
-That would leave scanner as the only grouping key, which is the constraint with the
-measured 0.053 of inflation behind it, while handling the report leak by
-construction. Cost is 183 studies at most, 4.2% of the corpus, and most of that is
-one 37-study normal-knee template that contributes little signal anyway.
+**Measured on the synthetic scanner probe:**
 
-Fallback options if that is not enough: coarsen the scanner key to Manufacturer
-plus field strength rather than the full five-tag fingerprint, or raise
-`--max-component` knowingly.
+| Strategy | Components | Largest component | Verdict |
+|---|---|---|---|
+| `group` | 168 | 2,706 (**61.4%**) | refused by the guard |
+| `dedupe` | 265 | 100 (**2.3%**) | clean |
+
+Component size falls to the size of the largest single site, which is exactly the
+predicted behaviour once the bridges are gone. Cost is **134 studies dropped**,
+4,407 down to 4,273, or 3.0% of the corpus, most of it one 37-study normal-knee
+template carrying little signal.
+
+Dedupe also produces *better* fold balance than grouping, which follows from having
+more placement freedom:
+
+| | fold sizes | ACL spread | Medial Meniscus spread |
+|---|---|---|---|
+| `group` | 863 to 892 | 0.025 | 0.065 |
+| `dedupe` | 846 to 862 | 0.021 | 0.051 |
+
+**Design note that is easy to get wrong.** Dedupe must actually DROP the redundant
+copies. The intuitive alternative, keeping them but barring them from validation,
+does not work: a duplicate sitting in training still carries the same derived target
+vector as its twin in validation, so "train only" is the leaking configuration by
+construction. The only exits are keeping the group whole in one fold or removing the
+copies.
+
+Fallbacks if dedupe proves insufficient against real fingerprints: coarsen the
+scanner key to Manufacturer plus field strength rather than the full five-tag
+fingerprint, or raise `--max-component` knowingly.
+
+### Two balancer defects found by reading the output
+
+Both produced plausible-looking files and would have been invisible without printing
+per-fold statistics.
+
+**Scaling.** The label cost summed over twelve labels while size contributed a
+single term, and each normalised by a different denominator (ideal positives ~211
+versus ideal fold size ~881). Size ended up roughly fifty times underweighted and
+fold sizes drifted from 766 to 1072 against an ideal of 881. Fixed by averaging the
+label term so `size_weight=1.0` means "size matters as much as the average finding".
+
+**Ordering.** The tie-break among equal-sized components decides everything once
+dedupe makes every component a singleton. Insertion order tracked site contiguity in
+the CSV. Sorting by label mass looked more principled but was worse: it places every
+high-signal study before any low-signal one, so the all-negative tail arrives when
+size is the only binding term and pours into whichever single fold is smallest,
+leaving one outlier fold per run (Medial Meniscus 0.374 against 0.48 elsewhere). A
+deterministic md5 hash-shuffle decorrelates order from both file position and label
+mass, and stays reproducible across machines.
 
 ### A bug worth recording, since it would have been silent
 

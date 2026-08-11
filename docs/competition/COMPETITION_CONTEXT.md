@@ -1297,6 +1297,73 @@ point favours the portfolio writeup over further Stage-1 work.
 
 ---
 
+## 6m. KEY-SWAP RESULT: modest transfer, and the model's weak columns are not the key's
+
+Run: fork v3, hybrid key (Section 6l), same folds, seed, configs, and T4 as the v2-era
+run, so the only variable is the label key. Label-source audit line confirmed the hybrid
+won discovery: `report_labels_v4hybrid.csv covers 4407 of 4407, lexicon for the
+remaining 0` (this resolves preflight WARN 2b). Runtime 4,967s (~83 min).
+
+### Headline numbers
+
+| Metric | v2 key | Hybrid key | Delta |
+|---|---|---|---|
+| r224 holdout (vs own key) | 0.7904 | 0.7932 | +0.0028 |
+| r336 holdout (vs own key) | 0.7950 | 0.7981 | +0.0031 |
+| **r224 annot (gold, n=10)** | 0.7652 | 0.7739 | **+0.0087** |
+| **r336 annot (gold, n=10)** | 0.7746 | 0.7863 | **+0.0117** |
+
+The holdout rows are NOT a like-for-like comparison (each run's holdout targets come
+from its own key). The annotation rows ARE like-for-like: same 10 gold studies, same
+fold membership, image-derived labels.
+
+### Reading it honestly
+
+A +0.029 key improvement (0.870 to 0.899) bought roughly +0.01 on the gold check.
+**Partial transfer, in the predicted direction, in both configs independently.** At
+n=10 the confidence interval swamps any single number, so the defensible claim is
+"consistent with modest transfer", not proof. Contrast with the fold A/B (Section 6k),
+where the predicted effect simply failed to appear: here it appears, at about a third
+of the key-side magnitude. Keep the hybrid key; it costs nothing and both comparable
+metrics moved the right way.
+
+### The diagnostic that matters more: per-finding holdout AUC (r336, best epoch 8)
+
+| Model's WORST columns | AUC | | Model's BEST columns | AUC |
+|---|---|---|---|---|
+| Lateral Meniscus | 0.712 | | **Fracture** | **0.865** |
+| MCL | 0.754 | | Medial OA | 0.851 |
+| PF OA | 0.759 | | **Synovitis** | **0.836** |
+| Medial Meniscus | 0.764 | | Effusion | 0.829 |
+| ACL | 0.782 | | Baker's | 0.828 |
+
+**The model's weak columns are the opposite of the key's.** Synovitis and Fracture,
+the key's two weakest labels, are among the model's STRONGEST holdout columns. The
+model struggles on exactly the fine structural findings: menisci, ligaments, PF
+cartilage. Clinically coherent: fluid and marrow signal (effusion, synovitis, edema,
+cyst) is large and bright; meniscal tears and ligament fiber disruption are thin,
+small structures at the edge of the sampled resolution.
+
+(The per-finding annot line at n=10 is reported in the log but is pure noise at that
+size, e.g. Medial Meniscus 0.458 and three columns at 1.000; do not read it.)
+
+### What this redirects
+
+1. **Label-side work is now formally closed.** The key is near its text ceiling
+   (Section 6l) and the model's bottleneck is not where the key is weak anyway.
+2. **Stage-2 effort should target structural-finding resolution**: higher input
+   resolution, meniscus-focused slot selection, sagittal/coronal emphasis for
+   menisci and ligaments. Independent corroboration: the public notebook ecosystem's
+   strongest non-baseline entry is literally titled "DINOv2 at meniscus resolution"
+   (wguesdon, Section 6h), which is the same diagnosis reached from the outside.
+3. r336 beat r224 again (fourth consecutive run), consistent with resolution being
+   the binding constraint on structural findings.
+
+GPU spent today: ~6.4 h of the 30 h weekly quota across five runs (two wasted, one
+control, two treatments).
+
+---
+
 ## 7. Forum intelligence worth chasing
 
 Threads observed on the Discussion tab (titles, authors, engagement):

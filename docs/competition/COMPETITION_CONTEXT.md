@@ -233,6 +233,66 @@ with the multilingual report problem.
 
 ---
 
+## 6a. Weak-label extraction: measured difficulty per finding
+
+Source: discussion thread 734117, Luka Duvanov (ranked 994th), posted 2026-08-10.
+Companion notebook: https://www.kaggle.com/code/nekkon/weak-labels-for-all-12-knee-mri-findings
+It extracts all twelve findings from all 4,407 reports and writes `weak_labels.csv` as
+notebook output, attachable directly.
+
+The valuable half is the per-finding measurement against the 58 gold studies.
+
+### Headline numbers (author's own, keyword-based extractor)
+
+- Balanced accuracy spans **0.82 (Baker's cyst) down to 0.56 (medial meniscus)**
+- Fracture: **0.93 specificity but only 0.44 sensitivity**
+- Extractor surfaces **2.6 findings per study** where annotators recorded **4.1**
+- Returns **nothing at all for 23 percent of studies**
+
+### The taxonomy, which is the real insight
+
+The author observes the difficulty ordering is not random. It tracks what *kind of thing*
+each finding is:
+
+**Named objects** (Baker's cyst, ACL) extract well. Present or absent, roughly one word
+per language. Vocabulary coverage is the whole problem, and vocabulary is tractable.
+
+**Graded severities** (effusion) fail. Reports say "minimal joint fluid" or "trace
+effusion", and a binary keyword match has nowhere to put the adjective. Getting these
+right means learning where the annotators drew their severity threshold. That is a
+modelling problem, not a vocabulary problem.
+
+**Unstated inferences** (fracture) fail hardest. More than half are described by
+appearance without the word ever appearing, which is why sensitivity collapses to 0.44
+while specificity stays at 0.93. The extractor is not wrong when it fires, it simply
+almost never fires.
+
+### Traps this exposes
+
+1. **Do not treat empty extractions as all-negative.** For the 23 percent that return
+   nothing, the author's explicit advice is to treat them as unlabelled. Folding them in
+   as twelve zeros would inject a large block of systematically false negatives.
+2. **The undercount is systematic, not random.** 2.6 recovered against 4.1 actual means
+   roughly a third of true positives are missing, concentrated in the graded-severity and
+   unstated-inference findings. Noise that correlates with the target is far more damaging
+   than symmetric noise.
+3. **Turkish and Greek are called out** as the weakest vocabulary coverage. The author is
+   soliciting corrections for exactly these.
+
+### Caveat on the numbers themselves
+
+These are measured on **58 studies**. At roughly 4.1 findings per study, a given finding
+may have only on the order of twenty positive examples in that set. Per-finding balanced
+accuracy computed on that base carries wide confidence intervals, so treat the extremes of
+the ordering (Baker's strong, meniscus weak) as probably real and any individual value as
+soft. The taxonomy is more trustworthy than the decimals attached to it.
+
+This also underlines Section 2a: with 58 gold studies serving as both the validation set
+for label extraction and clean supervision, how they are split is a genuine design
+decision, not a formality.
+
+---
+
 ## 7. Forum intelligence worth chasing
 
 Threads observed on the Discussion tab (titles, authors, engagement):

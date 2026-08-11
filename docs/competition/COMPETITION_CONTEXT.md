@@ -1043,6 +1043,84 @@ experiment as inexplicably optimistic validation.
 
 ---
 
+## 6j. Real scanner fingerprints extracted (2026-08-11)
+
+Ran `kaggle_kernels/scanner_fingerprints/` as a private Kaggle script kernel.
+**4,410 studies, 0 unreadable, about 90 seconds** at 59 studies/s, header-only reads,
+one file per study.
+
+Two operational notes for anyone repeating this. The competition data mounts at
+`/kaggle/input/competitions/<slug>/`, **not** `/kaggle/input/<slug>/` as the docs
+imply, which cost two failed runs. The kernel now discovers its root by searching
+for a directory containing `train_series/` rather than guessing a path, and prints
+the mounted tree on failure, which is what surfaced the real layout.
+
+### FINDING: the five-tag fingerprint is unusable as a grouping key
+
+| Key | Groups | Largest | Share | Top-20 coverage |
+|---|---|---|---|---|
+| full 5-tag as extracted | **3,262** | 130 | 2.9% | 8.1% |
+| drop ImagingFrequency | 149 | 353 | 8.0% | 65.1% |
+| vendor + model + software | 103 | 353 | 8.0% | 71.4% |
+| vendor + model | 46 | 741 | 16.8% | 90.9% |
+| vendor + field strength | 13 | 1,160 | 26.3% | 100% |
+
+3,262 groups across 4,410 studies is close to one group per study. Grouping on it
+imposes almost no constraint, so folds built that way are **random folds wearing a
+scanner-grouped label**, carrying the full inflation while appearing to guard
+against it. That failure mode is silent, which makes it worse than not guarding.
+
+The cause is `ImagingFrequency`, which records per-session shim and calibration
+drift rather than machine identity. The extracted headers show it plainly: three of
+the top ten fingerprints are the same Siemens MAGNETOM Avanto fit on the same
+software and coil, separated only by 63.685238, 63.685256 and 63.685259. One
+scanner, three groups.
+
+This does not reproduce Zhukov's reported 265 fingerprints with top-20 at 45.5%.
+The real numbers bracket his on either side depending on granularity, so he likely
+rounded the frequency. **Anyone copying his five-tag recipe verbatim from the forum
+post will get 3,262 groups and a false sense of safety.**
+
+Default is now `--scanner-key no-freq`: 149 groups, largest 8.0%, still comfortably
+splittable across five folds.
+
+### Real dual-grouped folds, both strategies
+
+| Strategy | Components | Largest | Share | ACL prevalence spread |
+|---|---|---|---|---|
+| `group` | 115 | 844 | 19.2% | 0.183 to 0.324 (**0.141**) |
+| `dedupe` | 140 | 347 | **8.1%** | 0.225 to 0.266 (**0.041**) |
+
+The cascade is real on actual data, though milder than the synthetic probe
+suggested (19.2% rather than 61.4%). Neither trips the 35% refusal threshold, but
+grouping's single 844-study component dominates whichever fold receives it and
+wrecks label balance: a 0.141 spread in ACL prevalence across folds is far too
+large to trust a validation delta against.
+
+**Recommended configuration:**
+
+```
+--scanner-key no-freq --report-strategy dedupe
+```
+
+Output at `data/folds_real_dedupe.csv`. Fold sizes 848 to 859, gold studies spread
+10 / 16 / 12 / 16 / 4.
+
+### Incidental confirmations from the real headers
+
+- **PatientSex M=2,077 / F=1,895**, plus 239 missing and 199 recorded as "O".
+  morningduck reported 2,076 / 1,894, so that is confirmed to within the three test
+  studies included here. Sex exists only in the headers, never in `train.csv`.
+- **Field strength**: 1.5T on 2,545 studies, 3.0T on 1,601, plus 24 at 1.16 and one
+  at 1.0.
+- **Manufacturer strings need normalising before use.** The raw data carries both
+  "Siemens Healthineers" (1,054) and "SIEMENS" (804), and both "Philips Medical
+  Systems" (718) and "Philips" (492). Treating those as different vendors would
+  split one site across folds, defeating the key. `normalise_vendor()` handles it.
+- Vendor mix: Siemens 1,858, GE 869, Philips 1,210, Toshiba 182.
+
+---
+
 ## 7. Forum intelligence worth chasing
 
 Threads observed on the Discussion tab (titles, authors, engagement):

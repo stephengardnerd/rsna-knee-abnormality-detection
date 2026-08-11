@@ -1424,6 +1424,71 @@ GPU today: ~7.3 h of 30. Annot per-finding at n=10 remains uninterpretable noise
 
 ---
 
+## 6o. SYNTHESIS RESULT (r294g2): new best, and a third mechanism surfaces
+
+r294g2 = 6 slices per slot at 294 px (0.442 mm/px, Nyquist-safe). Audit lines confirm
+the plan held: "2 group(s) of 3" at the 17.9 GiB budget, cache (4407, 6, 6, 294, 294)
+= 12.8 GB, hybrid labels, same folds. 64-minute run.
+
+### Three-way comparison (all identical except pitch/coverage)
+
+| Metric | r336 (3sl, 0.387) | r252g2 (6sl, 0.516) | r294g2 (6sl, 0.442) |
+|---|---|---|---|
+| Holdout macro | 0.7981 | 0.8115 | **0.8129** |
+| Annot macro (gold, n=10) | 0.7863 | 0.7987 | **0.7999** |
+
+New best on both comparable metrics, but the step from r252g2 is +0.0014/+0.0012:
+inside noise. The value of the run is the per-finding decomposition.
+
+### Per-finding, best epoch (9)
+
+| Finding | r336 | r252g2 | r294g2 | Verdict |
+|---|---|---|---|---|
+| Lateral Meniscus | 0.712 | 0.697 | **0.728** | pitch recovery CONFIRMED: above both |
+| ACL | 0.782 | 0.801 | 0.813 | coverage + pitch both help |
+| Synovitis | 0.836 | 0.860 | 0.869 | rises monotonically with coverage |
+| Effusion | 0.829 | 0.843 | 0.847 | same |
+| PF OA | 0.759 | 0.787 | 0.789 | coverage gain holds |
+| Baker's | 0.828 | 0.884 | 0.883 | coverage gain holds |
+| **MCL** | 0.754 | 0.723 | **0.715** | falls MONOTONICALLY, pitch did not fix it |
+| **Fracture** | 0.865 | 0.851 | **0.840** | falls MONOTONICALLY, pitch did not fix it |
+
+### The finding: a third mechanism, and the pitch story splits
+
+The v4 read attributed the MCL/Lateral-Meniscus/Fracture losses to pitch. r294g2
+separates them: **Lateral Meniscus was a genuine pitch casualty** (restoring sub-0.5
+mm/px put it above even r336) but **MCL and Fracture decline monotonically with the
+2-group scheme itself**, getting worse even as pitch improved.
+
+The coherent mechanism: training draws ONE RANDOM GROUP of 3 slices per step. A study
+whose evidence lives on 1-2 slices (a fracture line, one MCL location) is shown WITHOUT
+its evidence roughly half the time, while its study-level label stays positive. That is
+multi-instance label dilution, and it selectively punishes sparse-evidence findings.
+Fluid findings visible on every slice are immune, which is exactly the observed split.
+
+**Next lever if training continues**: make group sampling evidence-tolerant, e.g. train
+on both groups per step with a max or logsumexp over group logits (mirroring the
+existing predict-time logit mean), or weight the group draw. That is a training-scheme
+change, not a data change, and would need its own controlled run.
+
+### Session ledger after five controlled experiments
+
+| Experiment | Comparable metric moved |
+|---|---|
+| Dual-grouped folds vs md5 split | -0.003 (no measurable difference) |
+| Hybrid key vs v2 key | +0.012 annot |
+| Coverage 6-slice at 252 | +0.013 holdout, +0.012 annot |
+| Synthesis 294 px | +0.001 (noise), mechanism isolated |
+
+Net from the morning baseline: holdout-comparable improvements of roughly +0.015 on
+annot (0.7863 -> 0.7999 across key and imaging changes measured on the same 10 gold),
+plus the fold hygiene. GPU spent: ~9.5 h of 30 weekly.
+
+The best candidate for a formal competition submission is kernel version 5 (r294g2,
+holdout 0.8129). Submission is a UI action on the account holder's side.
+
+---
+
 ## 7. Forum intelligence worth chasing
 
 Threads observed on the Discussion tab (titles, authors, engagement):

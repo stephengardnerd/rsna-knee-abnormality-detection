@@ -139,6 +139,67 @@ def report_hash(text: str) -> str:
     return hashlib.md5(str(text).strip().encode("utf-8")).hexdigest()
 
 
+def normalise_vendor(s: str) -> str:
+    """Collapse manufacturer strings that name the same vendor.
+
+    The extracted headers carry both "Siemens Healthineers" and "SIEMENS", and both
+    "Philips Medical Systems" and "Philips". Treating those as different vendors
+    would split one site's studies across folds, which is precisely the leak the
+    scanner key exists to prevent.
+    """
+    s = str(s).upper()
+    for token in ("SIEMENS", "GE", "PHILIPS", "TOSHIBA", "CANON", "HITACHI", "UIH"):
+        if token in s:
+            return token
+    return s.strip() or "UNKNOWN"
+
+
+def coarsen_fingerprint(fp_df: pd.DataFrame, key: str) -> pd.Series:
+    """Build a scanner grouping key at the requested granularity.
+
+    WHY THIS IS NOT OPTIONAL
+    -----------------------
+    The five-tag fingerprint as extracted is too fine to group on. Measured on the
+    real headers for all 4,410 studies:
+
+        key                      groups  largest  share  top-20 coverage
+        full 5-tag                 3262      130   2.9%   8.1%
+        drop ImagingFrequency       149      353   8.0%  65.1%
+        vendor+model+software       103      353   8.0%  71.4%
+        vendor+model                 46      741  16.8%  90.9%
+        vendor+fieldstrength         13     1160  26.3% 100.0%
+
+    3,262 groups across 4,410 studies is close to one group per study, so grouping
+    on it imposes almost no constraint. Folds built that way would be random folds
+    wearing a scanner-grouped label, and would carry the full ~0.05 inflation while
+    appearing to guard against it. That failure is silent, which makes it worse
+    than not guarding at all.
+
+    The cause is ImagingFrequency, which records per-session shim and calibration
+    drift rather than machine identity. The extracted data shows it directly: three
+    of the top ten fingerprints are the same Siemens MAGNETOM Avanto fit with the
+    same software and coil, separated only by frequencies of 63.685238, 63.685256
+    and 63.685259. Same scanner, three groups.
+
+    "no-freq" is the default because it is the coarsest key that still separates
+    distinct machines, giving 149 groups with the largest at 8.0% of the corpus,
+    which remains comfortably splittable across five folds.
+
+    Returns a Series aligned to fp_df.
+    """
+    if key == "full":
+        return fp_df["fingerprint"].fillna("")
+    if key == "no-freq":
+        cols = ["Manufacturer", "ManufacturerModelName", "SoftwareVersions",
+                "ReceiveCoilName"]
+        return (fp_df["Manufacturer"].map(normalise_vendor) + "|"
+                + fp_df[cols[1:]].fillna("").astype(str).agg("|".join, axis=1))
+    if key == "vendor-model":
+        return (fp_df["Manufacturer"].map(normalise_vendor) + "|"
+                + fp_df["ManufacturerModelName"].fillna("").astype(str))
+    raise ValueError(f"unknown scanner key: {key}")
+
+
 def dedupe_report_groups(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Drop all but one study from each byte-identical-report group.
 
@@ -413,6 +474,12 @@ def main() -> None:
                          "this share of the corpus.")
     ap.add_argument("--report-only", action="store_true",
                     help="Print component diagnostics and exit without writing.")
+    ap.add_argument("--scanner-key", choices=["full", "no-freq", "vendor-model"],
+                    default="no-freq",
+                    help="Granularity of the scanner grouping key. 'full' is the "
+                         "raw five-tag fingerprint and is almost always WRONG: it "
+                         "yields 3262 groups over 4410 studies, which imposes no "
+                         "real constraint. See coarsen_fingerprint().")
     ap.add_argument("--report-strategy", choices=["group", "dedupe"], default="group",
                     help="How to handle byte-identical reports. 'group' keeps each "
                          "duplicate set whole in one fold, which is exact but "
@@ -433,7 +500,10 @@ def main() -> None:
         # first, since a study acquired on two machines is rare and either machine
         # is a valid grouping anchor for leak-2 purposes.
         fp = fp.drop_duplicates("StudyInstanceUID").set_index("StudyInstanceUID")
-        df["_scanner_fp"] = df["StudyInstanceUID"].map(fp["fingerprint"]).fillna("")
+        fp["_key"] = coarsen_fingerprint(fp, args.scanner_key)
+        df["_scanner_fp"] = df["StudyInstanceUID"].map(fp["_key"]).fillna("")
+        n_keys = df.loc[df["_scanner_fp"] != "", "_scanner_fp"].nunique()
+        print(f"scanner key '{args.scanner_key}': {n_keys} distinct groups")
         use_scanner = True
     else:
         df["_scanner_fp"] = ""

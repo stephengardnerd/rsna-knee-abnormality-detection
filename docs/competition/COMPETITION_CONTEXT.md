@@ -796,10 +796,12 @@ Threads observed on the Discussion tab (titles, authors, engagement):
 3. ~~Is the DICOM metadata shortcut real?~~ **RESOLVED, see Section 6d.** No. Metadata alone
    reaches only 0.598 across unseen scanners. Leaderboard reflects real image reading.
 4. ~~Confirm the 58 versus 4,407 labeled split.~~ **RESOLVED, see Section 6f.** Verified
-   first-hand: exactly 58 of 4,407, all-or-nothing, mean 4.14 findings. Three independent
-   community sources agree, but this remains unverified first-hand.
-5. How large is the dataset on disk? Run `kaggle competitions files` once credentials are
-   set up. Currently 1.3 TB free locally.
+   first-hand: exactly 58 of 4,407, all-or-nothing, mean 4.14 findings, zero all-negative.
+5. ~~How large is the dataset on disk?~~ **RESOLVED, see Section 6f.** Projected 1.1 to
+   1.6 TB for training DICOMs against 1.3 TB free. Local mirror is not viable; work in
+   Kaggle Notebooks or pull a deliberate subset.
+5a. Does the `Fluid_Sensitive` == `Fat_Suppression` identity (Section 6f) also hold in
+   `test_series.csv`? Verify before treating it as a dataset-wide property.
 6. **Do click-through public datasets (MRNet, fastMRI+, OAI, SKM-TEA) count as "equally
    accessible at no cost"?** Asked in 733652 and 734109, unanswered by the host as of this
    capture. Blocks any external-data strategy.

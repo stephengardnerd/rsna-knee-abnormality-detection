@@ -16,6 +16,8 @@ short and identical so that exactly one variable moved per experiment.
 
 ![What each controlled experiment moved, plus the first public score](assets/experiments_summary.png)
 
+![The multimodal pipeline: LLM-read reports supervise training, images alone predict](assets/multimodal_pipeline.png)
+
 ## Why this problem
 
 This one is personal. I dealt with knee injuries during and after my own Navy

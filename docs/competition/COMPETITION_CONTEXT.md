@@ -293,6 +293,124 @@ decision, not a formality.
 
 ---
 
+## 6b. The annotation rubric, and why reports cannot reproduce it
+
+Sources: pinned Overview thread 733343 (Label Description section), plus host replies in
+threads 733826 and 733491. Paraphrased below; see the original post for exact wording and
+the annotated image examples.
+
+### How the labels were actually made
+
+Each study in the annotated reference set was labeled independently by **two
+subspecialty-trained MSK radiologists, with a third adjudicating disagreements** to
+produce a single consensus ground truth. Labels are assigned at whole-examination level,
+for a single knee. The same process was used for the test set.
+
+**The governing rule: borderline or "on the fence" findings were graded NEGATIVE to favor
+specificity.** Nearly every extraction failure downstream traces back to this one line.
+
+### Positivity thresholds, paraphrased
+
+| Finding | Threshold for a positive label |
+|---------|-------------------------------|
+| ACL tear | High-grade partial or full-thickness. Complete discontinuity, or over 50% of fibers disrupted. Mild signal change, degeneration, or thickening without discontinuity is **negative**. |
+| MCL tear | High-grade partial or complete **acute** tear, disrupted fibers with edema. Low-grade sprains and chronic or remote stress change are **negative**. |
+| Medial meniscus tear | Abnormal signal definitely contacting the meniscal surface on **at least two images**, or a morphologic abnormality (truncated, diminutive, displaced fragment). Intrasubstance degeneration not reaching the surface is **negative**. |
+| Lateral meniscus tear | Same criteria, lateral side. |
+| Medial OA | Area roughly **1 cm or greater** of high-grade cartilage loss, meaning **over 50% of cartilage thickness**, with or without subchondral marrow change. |
+| Lateral OA | Same criteria, lateral compartment. |
+| PF OA | Same criteria, patellofemoral compartment. |
+| Joint effusion | A **moderate or large** amount of fluid distending the joint. |
+| Synovitis | Inflammation and thickening of the synovial lining. |
+| Baker's cyst | A **moderate or large** fluid collection in the characteristic location. |
+| Contusion | Marrow edema-like signal from impact, **without** a discrete fracture line. |
+| Acute fracture | An acute cortical break or fracture line. |
+
+### Host rulings that settle the report-versus-label question
+
+From thread 733826 (Nagoya Univ. Mori Lab Cho Royou asked, host answered):
+
+- Were labels assigned from images independently, rather than extracted from reports?
+  **Yes.**
+- If image and report disagree, is the image-derived label authoritative? **Yes.** The host
+  adds that only a small sample contains both, and that this is deliberate, intended to
+  help participants surface exactly this conclusion.
+- Do negative labels mean confirmed-absent, or possibly not-annotated? **Confirmed absent**
+  per the rubric.
+- Are bilateral exams sometimes under one StudyInstanceUID? **Yes.** Each was individually
+  reviewed and the released report text or DICOM metadata adjusted so participants can
+  disambiguate.
+- Are the discrepancies annotation errors? **No, expected.** Clinical reports come from one
+  signing radiologist writing for patient care. The labels come from multiple readers
+  applying stricter image-based thresholds.
+
+From thread 733491 (avg-HU asked, host answered):
+
+- Reports are deidentified originals, supplied as clinical text. They may contain ambiguous
+  wording, internal inconsistencies, and findings that do not map one-to-one onto the
+  twelve binary targets. This is a deliberate design choice reflecting real-world practice.
+- For meniscus specifically: the target is a **definite** tear. Intrasubstance degenerative
+  signal not reaching the articular surface is negative.
+- Marrow edema, cartilage findings, and narrative or impression terminology do **not** by
+  themselves determine the contusion or OA labels.
+
+### The consequence: a structural ceiling on weak supervision
+
+**The reports are not a noisy copy of the labels. They are a different measurement
+instrument pointed at the same knee.** One clinical radiologist writing prose for care
+delivery, versus two-plus-one MSK subspecialists applying quantitative thresholds with a
+specificity bias.
+
+Cho Royou quantified the gap by reading 20 of the 58 gold studies **manually**, under strict
+textual rules, across 240 label decisions:
+
+| Metric | Value |
+|--------|-------|
+| Overall agreement | 82.5% (198 of 240) |
+| Positive predictive agreement | 73.1% (68 of 93) |
+| Positive recall | 80.0% (68 of 85) |
+| TP / FP / FN / TN | 68 / 25 / 17 / 130 |
+
+That is a careful human reader, not a keyword script. **So roughly 82% agreement is the
+approximate ceiling for any report-derived label, no matter how good the extractor.**
+
+### Why the rubric explains Section 6a's difficulty ordering
+
+Cross-referencing the thresholds against Luka Duvanov's per-finding scores, the failures
+are definitional rather than linguistic:
+
+- **Effusion and Baker's require "moderate or large."** The adjective *is* the label. A
+  report reading "mild knee effusion" or "trace effusion" maps to **0**. Cho Royou flagged
+  exactly this case as a suspected annotation error; per the rubric it is correct. This
+  reframes Section 6a: graded severities do not fail because keywords cannot hold an
+  adjective, they fail because the severity threshold is the classification boundary.
+- **Medial meniscus, the worst performer at 0.56**, requires signal definitely contacting
+  the surface on at least two images. That is a pure imaging criterion with no textual
+  proxy whatsoever. Reports routinely describe degenerative signal in language that reads
+  positive but scores negative.
+- **OA requires roughly 1 cm and over 50% thickness loss.** Report mentions of
+  chondropathy or chondromalacia do not qualify, which explains several of Cho Royou's
+  flagged OA discrepancies.
+- **Contusion excludes a discrete fracture line; acute fracture requires a cortical break.**
+  An "osteochondral fracture" in a report need not satisfy either.
+
+### Direction-of-error warning
+
+Two measurements point opposite ways and both are real. Luka's keyword extractor
+**under-fires** (2.6 findings recovered against 4.1 actual). Cho Royou's careful manual
+reading **over-fires** relative to the rubric (25 false positives against 17 false
+negatives). A naive extractor misses positives; a good reader promotes sub-threshold
+findings the rubric calls negative. Calibrating against the rubric's specificity bias
+matters as much as improving recall.
+
+### Independent confirmation of the 58
+
+In the Overview thread comments, Omar M Kamel reports that `train.csv` carries only 58
+flagged rows with the remainder NaN. That is now a third independent source for the figure
+in Section 2.
+
+---
+
 ## 7. Forum intelligence worth chasing
 
 Threads observed on the Discussion tab (titles, authors, engagement):

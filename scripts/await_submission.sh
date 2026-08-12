@@ -35,8 +35,11 @@ while (( tick < MAX_TICKS )); do
     # First data row after the two header lines is the newest submission.
     row=$(echo "$out" | sed -n '3p')
     echo "[$(date '+%F %T')] $row" >> "$LOG"
+    # Kaggle reports enum-style statuses (SubmissionStatus.COMPLETE); zsh case
+    # patterns are case-sensitive, so match both spellings. The lowercase-only
+    # pattern let a scored submission poll to the tick bound unnoticed.
     case "$row" in
-      *complete*|*error*|*Error*)
+      *complete*|*COMPLETE*|*error*|*Error*|*ERROR*)
         echo "[$(date '+%F %T')] TERMINAL: $row" >> "$LOG"
         exit 0 ;;
     esac
